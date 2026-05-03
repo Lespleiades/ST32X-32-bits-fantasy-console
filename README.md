@@ -248,6 +248,29 @@ It covers:
 
 ---
 
+## Development Roadmap & TODO List
+
+This document outlines the priority tasks for the ST32X project based on the current state of the APU, CPU, GPU, and Assembler sources.
+
+## 🔴 High Priority: System & Core
+- [ ] **Interrupt Management:** - Add IRQ/NMI support to the CPU logic.
+- [ ] Link the GPU VBlank signal to an interrupt trigger for timing synchronization.
+- [ ] **Timing Accuracy:** Update the instruction cycle counting (currently defaults to 1 cycle for all opcodes).
+
+## 🟡 Medium Priority: Graphics & Audio
+- [ ] **GPU - Collision System:** Implement the logic for Sprite-to-Sprite and Sprite-to-Tile collisions using `COLLISION_CTRL`.
+- [ ] **APU - Audio Quality:** - Implement **linear interpolation** for pitch-shifting to eliminate aliasing noise.
+- [ ] Add basic **ADSR envelopes** (Attack, Decay, Sustain, Release) for volume control.
+- [ ] **Input Handling:** Add a default keyboard mapping (SDL_SCANCODE) to allow testing without a gamepad.
+
+## 🔵 Low Priority: Tools & Optimization
+- [ ] **Assembler (ASM) Enhancements:** Add `.db` / `.dw` directives for raw data insertion.
+- [ ] Add `.incbin` directive to include external assets (graphics/sound) directly into the binary.
+- [ ] **GPU - Rendering Optimization:** Transition from pixel-by-pixel rendering to a more efficient **scanline-based** renderer.
+- [ ] **Debug Tools:** Develop a basic real-time disassembler to monitor execution flow during emulation.
+
+---
+
 ## Contributing
 
 Contributions are welcome! Here are some ways to get involved:
