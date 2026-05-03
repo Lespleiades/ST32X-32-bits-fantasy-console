@@ -136,8 +136,8 @@ sudo apt install gcc libsdl2-dev
 
 ```bash
 # Clone the repository
-git clone https://github.com/Lespleiades/ST32X---32-bits-fantasy-console.git
-cd ST32X---32-bits-fantasy-console
+git clone https://github.com/Lespleiades/ST32X-32-bits-fantasy-console.git
+cd ST32X-32-bits-fantasy-console
 
 # Compile the emulator
 gcc -o bin\st32x_console src\main.c src\cpu.c src\gpu.c src\apu.c src\controller.c -lSDL2 -lm -O2 -Wall
@@ -156,6 +156,7 @@ Or simply use build/build.bat
 bin\st32x_asm test\input.asm bin\output.bin
 
 # Step 2 — Run it from bin folder
+cd bin
 st32x_console.exe
 ```
 
