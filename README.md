@@ -28,7 +28,7 @@ It is a complete system built from scratch:
 - A **custom CPU** with a 32-bit address space and 16 general-purpose registers
 - A **GPU** with 6 display layers, 256 sprites, hardware scrolling and collision detection
 - An **APU** with 16 wavetable audio channels at 44100 Hz
-- A **custom assembler** that turns `.asm` source files into runnable binaries
+- A **custom assembler** that turns `.asm` source files into runnable binaries (Roms)
 - **SDL2** for window rendering, audio output, and gamepad support
 
 ---
