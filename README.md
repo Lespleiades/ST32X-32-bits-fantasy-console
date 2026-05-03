@@ -31,8 +31,6 @@ It is a complete system built from scratch:
 - A **custom assembler** that turns `.asm` source files into runnable binaries
 - **SDL2** for window rendering, audio output, and gamepad support
 
-Whether you want to learn how CPUs and GPUs work at a low level, build retro-style games, or just explore a hand-crafted virtual machine — ST32X is for you.
-
 ---
 
 ## Feature Highlights
