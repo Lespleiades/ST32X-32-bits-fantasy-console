@@ -33,6 +33,47 @@ It is a complete system built from scratch:
 
 ---
 
+## ST32X vs. 32-Bit Era Consoles: Technical Comparison
+
+The **ST32X** is a unique entry in the fantasy console landscape. While commercial machines of the mid-90s pushed for raw 3D power, the ST32X focuses on a **streamlined architecture and direct register manipulation**, making it feel more like a "Neo-Geo on steroids" than a PlayStation.
+
+## Technical Comparison Table
+
+| Feature | ST32X (Fantasy Console) | Sony PlayStation (1994) | Sega Saturn (1994) |
+| :--- | :--- | :--- | :--- |
+| **CPU Architecture** | **Custom 32-bit RISC** | MIPS R3000A | Dual Hitachi SH-2 |
+| **Graphics Engine** | **Tile/Sprite Based** (4 BG layers) | Geometry Transformation Engine | Dual VDP (Quads/Sprites) |
+| **3D Capabilities** | **Affine/Raycasting Only** | High (Hardware Polygons) | Moderate (Distorted Quads) |
+| **Color Depth** | **RGB565** (16-bit High Color) | 15-bit to 24-bit | 15-bit to 24-bit |
+| **Memory Map** | **Linear Addressing** (No Segments) | Coprocessor based | Complex (Bus switching) |
+| **Storage Media** | **Binary ROM** (.bin) | CD-ROM | CD-ROM |
+
+---
+
+## Key Differentiators
+
+### Programming Philosophy: Assembly vs. SDKs
+While most 32-bit consoles relied on complex C libraries to manage polygons, the **ST32X** is designed for **pure Assembly programming**. Its RISC instruction set and Memory-Mapped I/O (MMIO) registers are accessed directly, offering total hardware control similar to a Game Boy Advance but with 32-bit precision.
+
+### Graphics: The "Super 2D" Approach
+The ST32X excels in **rich 2D performance** rather than transforming triangles:
+*   **Multi-Layering:** Supports 4 background layers (BG0-BG3) with configurable priorities.
+*   **Sprite Management:** Uses a simplified OAM (Object Attribute Memory) where each sprite is defined by coordinates and a tile ID.
+*   **Affine Transformations:** Includes built-in Trigonometric Tables (SIN/COS) for "Mode 7" style distortion and raycasting effects.
+
+### Simplified Memory Management
+A major advantage of the ST32X over historical hardware is its **linear memory map**:
+*   **VRAM** begins at `0x00080000`.
+*   **Palette** begins at `0x00100500`.
+*   **I/O Registers** are logically grouped for easy access.
+
+There is no complex memory banking or hardware cache management, making development highly predictable for solo developers.
+
+## Summary
+The **ST32X** is technically less powerful than a PlayStation for complex 3D models, but it is **significantly more optimized for high-resolution 2D games** (RGB565). it captures the essence of 32-bit hardware without the administrative complexity of commercial systems from 1994.
+
+---
+
 ## Feature Highlights
 
 ### CPU
