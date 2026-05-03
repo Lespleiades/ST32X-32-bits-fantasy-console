@@ -283,7 +283,7 @@ Please read the technical documentation before contributing to understand the ha
 
 ## License
 
-This project is licensed under the **Creative Commons** — see the [`LICENSE.md`](LICENSE) file for details.
+This project is licensed under the **Creative Commons** — see the [`LICENSE.md`](LICENSE.md) file for details.
 
 ---
 
