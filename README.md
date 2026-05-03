@@ -74,6 +74,42 @@ The **ST32X** is technically less powerful than a PlayStation for complex 3D mod
 
 ---
 
+## Emulation Philosophy: ST32X vs. Classic Emulators
+
+The **ST32X** is not a traditional emulator designed to mimic a physical past; it is a **Virtual Hardware Specification** designed for the future of hobbyist development.
+
+### Logic-Level Virtualization vs. Hardware Reproduction
+
+Traditional emulators (HLE/LLE) focus on reproducing the quirks and limitations of physical silicon. The ST32X focuses on **Architectural Purity**.
+
+| Feature | Classic Emulators (PS1/Saturn) | ST32X Virtual Machine |
+| :--- | :--- | :--- |
+| **Primary Goal** | Historical Accuracy / Preservation | Developer Experience / Performance |
+| **Memory Map** | Fragmented (Bank switching/Segments) | **Linear & Unified** (0x00000000 - 0xFFFFFFFF) |
+| **I/O Handling** | Complex Bus Arbitration | **Direct MMIO Registers** |
+| **Code Execution** | Binary Translation / Interpretation | **Native 32-bit RISC Execution** |
+| **Graphics** | Re-interpretation (OpenGL/Vulkan) | **Byte-Direct Framebuffer/Tilemap** |
+
+---
+
+### Key Architectural Advantages
+
+#### Linear Memory Addressing
+Unlike 90s hardware that required complex memory banking to bypass 16-bit limits, the ST32X provides a **flat 32-bit memory space**. 
+*   **VRAM Access:** Directly accessible at `0x00080000`.
+*   **Palette Control:** Fast writes starting at `0x00100500`.
+This eliminates the "bottleneck" logic found in classic emulators, allowing for higher performance and cleaner Assembly code.
+
+#### MMIO (Memory-Mapped I/O) Precision
+The ST32X emulator acts as a **Logic Gate Array**. By writing to specific memory addresses, the developer triggers hardware events (like GPU state changes or VSync) without the overhead of an Operating System or high-level API.
+
+#### RISC Instruction Set Efficiency
+The CPU emulation follows a strict **Reduced Instruction Set Computer (RISC)** philosophy. Every instruction is designed to be:
+*   **Predictable:** No hidden "illegal opcodes" or cycle-skipping bugs.
+*   **Transparent:** The state of registers `R0-R15` is always visible and consistent.
+
+---
+
 ## Feature Highlights
 
 ### CPU
