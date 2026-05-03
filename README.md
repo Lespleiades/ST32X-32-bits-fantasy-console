@@ -259,7 +259,7 @@ This document outlines the priority tasks for the ST32X project based on the cur
 - [ ] **Timing Accuracy:** Update the instruction cycle counting (currently defaults to 1 cycle for all opcodes).
 
 ### 🟡 Medium Priority: Graphics & Audio
-- [ ] **GPU - Collision System:** Implement the logic for Sprite-to-Sprite and Sprite-to-Tile collisions using `COLLISION_CTRL`.
+- [ ] **GPU - Collision System:** Implement the logic for Sprite-to-Tile collisions.
 - [ ] **APU - Audio Quality:** - Implement **linear interpolation** for pitch-shifting to eliminate aliasing noise.
 - [ ] Add basic **ADSR envelopes** (Attack, Decay, Sustain, Release) for volume control.
 
