@@ -320,7 +320,7 @@ setup_hud:
     STRI 0x00100250, R0
     LI R0, 0x0000
     STRI 0x00100252, R0
-    LI R1, 5
+    LI R1, 4
     LI R2, 0x5000
     LIH R2, 0x0008
     LI R3, 64
@@ -457,17 +457,17 @@ main_loop:
 
 update_scroll:
     LDRI R0, 0x00000200
-    ADDI R0, 3
+    SUBI R0, 8
     STRI 0x00000200, R0
     STRI 0x00100210, R0
 
     LDRI R0, 0x00000202
-    ADDI R0, 2
+    SUBI R0, 4
     STRI 0x00000202, R0
     STRI 0x00100220, R0
 
     LDRI R0, 0x00000204
-    ADDI R0, 1
+    SUBI R0, 2
     STRI 0x00000204, R0
     STRI 0x00100230, R0
     RET
