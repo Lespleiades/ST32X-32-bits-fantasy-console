@@ -10,7 +10,6 @@
 [![SDL2](https://img.shields.io/badge/SDL-2.0-orange.svg)](https://www.libsdl.org/)
 [![Status: Active](https://img.shields.io/badge/Status-Active-brightgreen.svg)]()
 
-*Write assembly. Run it. Hear it. Play it.*
 
 </div>
 
