@@ -46,7 +46,7 @@ The **ST32X** is a unique entry in the fantasy console landscape. While commerci
 | **3D Capabilities** | **Affine/Raycasting Only** | High (Hardware Polygons) | Moderate (Distorted Quads) |
 | **Color Depth** | **RGB565** (16-bit High Color) | 15-bit to 24-bit | 15-bit to 24-bit |
 | **Memory Map** | **Linear Addressing** (No Segments) | Coprocessor based | Complex (Bus switching) |
-| **Storage Media** | **Binary ROM** (.bin) | CD-ROM | CD-ROM |
+| **Storage Media** | **Binary ROM** (.bin) (cartridge)| CD-ROM | CD-ROM |
 
 ---
 
