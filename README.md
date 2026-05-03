@@ -171,38 +171,105 @@ The console automatically loads `output.bin` from the current directory and star
 .org 0x00200000
 
 main:
-    LI  R15, 0xFFFC         ; Initialize stack pointer
+    ; --- STACK INITIALIZATION ---
+    LI  R15, 0xFFFC
     LIH R15, 0x0007         ; SP = 0x0007FFFC
 
-    ; Enable GPU
-    LI R0, 0x0001
-    STRI 0x00100200, R0
+    ; --- PALETTE CONFIGURATION ---
+    ; Palette base address = 0x00100500
+    LI R0, 0xF800           ; Red color
+    STRI 0x00100502, R0     ; Palette Index 1
+    LI R0, 0x001F           ; Blue color
+    STRI 0x00100504, R0     ; Palette Index 2
 
-    ; Set red color in palette 0, index 1
-    LI R0, 0xF800
-    STRI 0x00100302, R0
-
-    ; Enable BG0, tilemap @ VRAM+0x1000
-    LI R0, 0x0001 : STRI 0x00100218, R0
-    LI R0, 0x1000 : STRI 0x00100214, R0
-
-    ; Fill tilemap with red tiles (MSET value 1 → tile index 257)
+    ; --- VRAM TILE DATA CREATION ---
+    ; Tile 257 (Background): Filled with color index 1 (Red)
+    ; MSET with value 1 writes 0x01 bytes -> GPU reads 0x0101 (Index 257)
     LI R1, 1
-    LI R2, 0x1000 : LIH R2, 0x0008
-    LI R3, 2048
+    LI R2, 0x0100
+    LIH R2, 0x0009          ; RAM 0x00090100 (VRAM offset 0x10100)
+    LI R3, 256              ; 16x16 pixels
     MSET
 
-    ; Create the tile pixels in VRAM
-    LI R1, 1
-    LI R2, 0x0100 : LIH R2, 0x0009
+    ; Tile 514 (Sprite): Filled with color index 2 (Blue)
+    ; MSET with value 2 writes 0x02 bytes -> GPU reads 0x0202 (Index 514)
+    LI R1, 2
+    LI R2, 0x0200
+    LIH R2, 0x000A          ; RAM 0x000A0200 (VRAM offset 0x20200)
     LI R3, 256
     MSET
 
+    ; --- BACKGROUND CONFIGURATION (BG0) ---
+    LI R0, 0x1000
+    STRI 0x00100214, R0     ; Set BG0 Tilemap Address to VRAM + 0x1000
+    
+    ; Fill Tilemap with Tile ID 257 (Red background)
+    LI R1, 1                ; MSET writes 0x01,0x01 -> ID 257
+    LI R2, 0x1000
+    LIH R2, 0x0008          ; RAM 0x00081000
+    LI R3, 2048             ; Fill 1024 tiles (32x32 screen area)
+    MSET
+
+    LI R0, 1
+    STRI 0x00100218, R0     ; Enable BG0 layer
+
+    ; --- SPRITE INITIAL SETUP ---
+    LI R0, 150              ; Initial X position
+    STRI 0x00104500, R0
+    LI R0, 110              ; Initial Y position
+    STRI 0x00104502, R0
+    LI R0, 514              ; Use Tile ID 514 (Blue pixels)
+    STRI 0x00104504, R0
+    LI R0, 0x0004           ; Sprite Flags: Enabled bit set
+    STRI 0x00104508, R0
+
+    ; --- GPU GLOBAL ENABLE ---
+    LI R0, 1
+    STRI 0x00100200, R0     ; Turn on the GPU
+
 loop:
-    VSYNC
+    VSYNC                   ; Wait for Vertical Sync
+
+    ; --- INPUT HANDLING ---
+    LDRI R1, 0x00100112     ; Read Controller 0 D-PAD state
+    LDRI R2, 0x00104500     ; Current Sprite X
+    LDRI R3, 0x00104502     ; Current Sprite Y
+
+    ; Check UP direction
+    LI R4, 1
+    MOV R5, R1
+    AND R5, R4
+    JZ check_down
+    DEC R3
+check_down:
+    ; Check DOWN direction
+    LI R4, 2
+    MOV R5, R1
+    AND R5, R4
+    JZ check_left
+    INC R3
+check_left:
+    ; Check LEFT direction
+    LI R4, 4
+    MOV R5, R1
+    AND R5, R4
+    JZ check_right
+    DEC R2
+check_right:
+    ; Check RIGHT direction
+    LI R4, 8
+    MOV R5, R1
+    AND R5, R4
+    JZ update_pos
+    INC R2
+
+update_pos:
+    STRI 0x00104500, R2     ; Write updated X to OAM
+    STRI 0x00104502, R3     ; Write updated Y to OAM
+
     JMP loop
 
-    HALT
+HALT
 ```
 ---
 
