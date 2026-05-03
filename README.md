@@ -142,7 +142,7 @@ git clone https://github.com/Lespleiades/ST32X---32-bits-fantasy-console.git
 cd ST32X---32-bits-fantasy-console
 
 # Compile the emulator
-gcc -o st32x_console src\main.c src\cpu.c src\gpu.c src\apu.c src\controller.c -lSDL2 -lm -O2 -Wall
+gcc -o bin\st32x_console src\main.c src\cpu.c src\gpu.c src\apu.c src\controller.c -lSDL2 -lm -O2 -Wall
 
 # Compile the assembler (standalone)
 gcc src\assembler.c -o bin\st32x_asm -lws2_32
@@ -155,9 +155,9 @@ Or simply use build/build.bat
 
 ```bash
 # Step 1 — Assemble your program
-st32x_asm test\input.asm bin\output.bin
+bin\st32x_asm test\input.asm bin\output.bin
 
-# Step 2 — Run it
+# Step 2 — Run it from bin folder
 st32x_console.exe
 ```
 
