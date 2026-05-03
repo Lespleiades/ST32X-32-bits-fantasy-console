@@ -261,7 +261,6 @@ This document outlines the priority tasks for the ST32X project based on the cur
 - [ ] **GPU - Collision System:** Implement the logic for Sprite-to-Sprite and Sprite-to-Tile collisions using `COLLISION_CTRL`.
 - [ ] **APU - Audio Quality:** - Implement **linear interpolation** for pitch-shifting to eliminate aliasing noise.
 - [ ] Add basic **ADSR envelopes** (Attack, Decay, Sustain, Release) for volume control.
-- [ ] **Input Handling:** Add a default keyboard mapping (SDL_SCANCODE) to allow testing without a gamepad.
 
 ### 🔵 Low Priority: Tools & Optimization
 - [ ] **Assembler (ASM) Enhancements:** Add `.db` / `.dw` directives for raw data insertion.
