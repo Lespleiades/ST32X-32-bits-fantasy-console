@@ -20,7 +20,7 @@
 
 ## What is ST32X?
 
-**ST32X** is a fantasy console — an imaginary piece of hardware that never existed, fully emulated in software. Inspired by the golden age of 16-bit/32-bit consoles, it combines the nostalgia of classic game hardware with a clean, modern **32-bit linear architecture** that is far easier to understand and program than the real thing.
+**ST32X** is a fantasy console — an imaginary piece of hardware that never existed, fully emulated in software. Inspired by the golden age of 16-bit/32-bit consoles and designed for 2D pixelart games, it combines the nostalgia of classic game hardware with a clean, modern **32-bit linear architecture**.
 
 You write programs in **ST32X Assembly**, assemble them into a binary ROM, and the emulator runs them — complete with graphics, sound, and gamepad input.
 
