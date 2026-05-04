@@ -419,6 +419,11 @@ This document outlines the priority tasks for the ST32X project based on the cur
 
 ---
 
+## What's Next?
+
+* SDK with LUA developement pipeline
+* FPGA core
+
 ## Contributing
 
 Contributions are welcome! Here are some ways to get involved:
