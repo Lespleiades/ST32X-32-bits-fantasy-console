@@ -198,13 +198,17 @@ Memory Map:
 - SDL2 development libraries
 
 **Windows (MSYS2):**
+
+Download MSYS2 installer from:
+
 ```bash
-pacman -S mingw-w64-x86_64-gcc mingw-w64-x86_64-SDL2
+https://www.msys2.org/
 ```
 
-**Linux (Ubuntu/Debian):**
+Open MSYS MSYS and isntall SDL2 libraries:
+ 
 ```bash
-sudo apt install gcc libsdl2-dev
+pacman -S mingw-w64-x86_64-gcc mingw-w64-x86_64-SDL2
 ```
 
 ---
