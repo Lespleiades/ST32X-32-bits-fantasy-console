@@ -1,16 +1,16 @@
-;=========================================================================
+;=============================================================================
 ; ST32X Fantasy Console - Horizontal Parallax Scrolling Demo
-; Architecture 32-bit Linear Addressing
+; 32-bit Linear Addressing Architecture
 ;
 ; Screen layout:
-;   y=  0- 15 : HUD   - red
-;   y= 16- 63 : BG2   - yellow/orange checkerboard (+1 px/frame, slow)
-;   y= 64-127 : BG1   - green/blue checkerboard   (+2 px/frame, mid)
-;   y=128-223 : BG0   - red/darkblue checkerboard  (+3 px/frame, fast)
+;   y=  0-15 	: HUD  	- violet
+;   y=16-63 	: BG2	- yellow/grey 	checkerboard (+1 px/frame, slow)
+;   y=64-127	: BG1	- green/orange 	checkerboard    (+2 px/frame, mid)
+;   y=128-223	: BG0	- red/violet 	checkerboard  (+3 px/frame, fast)
 ;
 ; Sprites:
-;   Sprite 0 (dark blue, tile 1799) @ (152,100) - D-PAD controlled
-;   Sprite 1 (violet,    tile 1028) @ (200, 90) - static collision target
+;   Sprite 0 (brown, tile 1799) @ (152,100) - D-PAD controlled
+;   Sprite 1 (violet,    tile 1028) @ (200,90) - static collision target
 ;
 ; RAM:
 ;   0x00000100 : sound_flag
@@ -29,46 +29,46 @@
 ;   Uses R5-R10 internally
 ;   STR8 Rs, Rd -> mem8[Rd] = Rs
 ;
-; COMMENT FONCTIONNE LE SYSTÈME NMI :
+; HOW THE NMI SYSTEM WORKS:
 ;
-;   1. main écrit l'adresse de nmi_handler dans le vecteur NMI (RAM 0x00000010)
-;   2. main entre dans une boucle infinie : VSYNC -> attend VBlank -> JMP main_loop
-;   3. À chaque fin de frame, main.c déclenche la NMI (cpu->nmi_pending = true)
-;   4. Le CPU :
-;        - Sauvegarde PC + flags sur la pile
-;        - Saute à nmi_handler
-;   5. nmi_handler fait tout le travail (scroll, sprite, son, collision)
-;   6. RTI restaure PC + flags -> le CPU reprend exactement là où il était
-;        (c'est-à-dire sur le VSYNC ou le JMP, peu importe)
+;   1. main writes the address of nmi_handler to the NMI vector (RAM 0x00000010)
+;   2. main enters an infinite loop: VSYNC -> wait for VBlank -> JMP main_loop
+;   3. At the end of each frame, main.c triggers the NMI (cpu->nmi_pending = true)
+;   4. The CPU:
+;        - Saves PC + flags to stack
+;        - Jumps to nmi_handler
+;   5. nmi_handler does all the work (scroll, sprite, sound, collision)
+;   6. RTI restores PC + flags -> CPU resumes exactly where it was
+;        (either on VSYNC or JMP, doesn't matter)
 ;
-;   AVANTAGE vs l'ancien polling :
-;   - Le code de jeu (update) est GARANTI de s'exécuter exactement 1 fois
-;     par frame, même si le CPU est lent ou en attente de VBlank.
-;   - Plus besoin de vérifier manuellement si VBlank est arrivé.
+;   ADVANTAGE vs old polling:
+;   - Game code (update) is GUARANTEED to execute exactly 1 time per frame,
+;     even if CPU is slow or waiting for VBlank.
+;   - No need to manually check if VBlank has occurred.
 ;
-; CARTE MÉMOIRE DES VECTEURS (RAM) :
-;   0x00000010 : NMI vector (32-bit) — adresse du handler NMI
-;   0x00000014 : IRQ vector (32-bit) — non utilisé ici (laisser à 0)
+; MEMORY MAP FOR VECTORS (RAM):
+;   0x00000010 : NMI vector (32-bit) — NMI handler address
+;   0x00000014 : IRQ vector (32-bit) — not used here (leave as 0)
 ;
-; RAM UTILITAIRE :
-;   0x00000100 : sound_flag   (0=CH0 arrêté, 1=CH0 actif)
+; UTILITY RAM:
+;   0x00000100 : sound_flag   (0=CH0 stopped, 1=CH0 active)
 ;   0x00000200 : bg0_scroll_x
 ;   0x00000202 : bg1_scroll_x
 ;   0x00000204 : bg2_scroll_x
-;=========================================================================
+;=============================================================================
 
 .org 0x00200000
 
-;=========================================================================
-; POINT D'ENTRÉE PRINCIPAL
-;=========================================================================
+;=============================================================================
+; MAIN ENTRY POINT
+;=============================================================================
 
 main:
-    ; Initialiser le Stack Pointer
+    ; Initialize Stack Pointer
     LI  R15, 0xFFFC
     LIH R15, 0x0007           ; SP = 0x0007FFFC
 
-    ; Initialisation hardware
+    ; Hardware initialization
     CALL init_system
     CALL gpu_enable
     CALL setup_palette
@@ -79,139 +79,137 @@ main:
     CALL setup_apu
 
     ; -------------------------------------------------------
-    ; INSTALLER LE VECTEUR NMI
-    ; On doit écrire l'adresse de nmi_handler (32-bit) en RAM
-    ; à l'adresse 0x00000010 (NMI_VECTOR_ADDR défini dans cpu.h).
+    ; INSTALL NMI VECTOR
+    ; We must write the address of nmi_handler (32-bit) to RAM
+    ; at address 0x00000010 (NMI_VECTOR_ADDR defined in cpu.h).
     ;
-    ; nmi_handler est un LABEL, donc l'assembleur le résout
-    ; automatiquement en adresse 32-bit absolue.
+    ; nmi_handler is a LABEL, so the assembler resolves it
+    ; automatically to a 32-bit absolute address.
     ;
-    ; On utilise LIL + LIH pour charger les 32 bits de l'adresse
-    ; dans R0, puis STR pour l'écrire en RAM.
+    ; We use LIL + LIH to load the 32 bits of the address
+    ; into R0, then STR to write it to RAM.
     ;
-    ; Attention : l'assembleur ne peut pas mettre un label dans
-    ; LI (imm16 seulement). On utilise donc :
-    ;   LI  R0, <partie basse 16 bits de l'adresse>
-    ;   LIH R0, <partie haute 16 bits de l'adresse>
-    ; Mais comme l'adresse de nmi_handler sera dans la ROM
-    ; (0x002XXXXX), la partie haute sera toujours 0x0020.
-    ; La partie basse dépend de la taille du code — l'assembleur
-    ; calculera exactement ça avec le label.
+    ; Note: The assembler cannot put a label directly in
+    ; LI (only imm16). So we use:
+    ;   LI  R0, <lower 16 bits of address>
+    ;   LIH R0, <upper 16 bits of address>
+    ; But since the nmi_handler address will be in ROM
+    ; (0x002XXXXX), the upper part will always be 0x0020.
+    ; The lower part depends on code size — the assembler
+    ; calculates exactly that with the label.
     ;
-    ; SYNTAXE : on utilise STRI (store 16-bit) deux fois :
-    ;   - une pour les bits 31:16 à l'adresse 0x00000010
-    ;   - une pour les bits 15:0  à l'adresse 0x00000012
+    ; SYNTAX: We use STRI (store 16-bit) twice:
+    ;   - one for bits 31:16 at address 0x00000010
+    ;   - one for bits 15:0  at address 0x00000012
     ; -------------------------------------------------------
 
-    ; Charger l'adresse de nmi_handler dans R0 (32-bit)
-    ; L'assembleur résout le label nmi_handler en imm32
-    JMP install_nmi_vector    ; On saute vers la routine d'installation
+    ; Load nmi_handler address into R0 (32-bit)
+    ; The assembler resolves label nmi_handler to imm32
+    JMP install_nmi_vector    ; Jump to installation routine
 
 install_done:
     ; -------------------------------------------------------
-    ; BOUCLE PRINCIPALE
-    ; Le CPU attend le VBlank ici. Tout le vrai travail
-    ; est fait dans nmi_handler, appelé automatiquement
-    ; par le CPU à chaque VBlank.
+    ; MAIN LOOP
+    ; CPU waits for VBlank here. All the real work
+    ; is done in nmi_handler, called automatically by CPU
+    ; at each VBlank.
     ; -------------------------------------------------------
 main_loop:
-    VSYNC                     ; CPU suspendu jusqu'au prochain VBlank
-    JMP main_loop             ; Recommencer (la NMI interrompt cette boucle)
+    VSYNC                     ; CPU suspended until next VBlank
+    JMP main_loop             ; Restart (NMI interrupts this loop)
 
     HALT
 
-;=========================================================================
-; INSTALLATION DU VECTEUR NMI
+;=============================================================================
+; NMI VECTOR INSTALLATION
 ;
-; Écrit l'adresse 32-bit de nmi_handler en RAM 0x00000010.
-; On doit séparer les 16 bits hauts et bas car STRI ne fait que 16 bits.
+; Writes 32-bit address of nmi_handler to RAM 0x00000010.
+; Must separate upper 16 bits and lower 16 bits since STRI only does 16 bits.
 ;
-; Format en mémoire :
-;   0x00000010 : bits 31:16 de nmi_handler
-;   0x00000012 : bits 15:0  de nmi_handler
+; Memory format:
+;   0x00000010 : bits 31:16 of nmi_handler
+;   0x00000012 : bits 15:0  of nmi_handler
 ;
-; Le CPU (mem_read32) lit: (mem16[0x10] << 16) | mem16[0x12]
-;=========================================================================
+; CPU (mem_read32) reads: (mem16[0x10] << 16) | mem16[0x12]
+;=============================================================================
 
 install_nmi_vector:
-    ; Bits 31:16 de nmi_handler → toujours 0x0020 (ROM haute)
+    ; Bits 31:16 of nmi_handler → always 0x0020 (ROM upper)
     LI R0, 0x0020
-    STRI 0x00000010, R0       ; Écrire bits 31:16 du vecteur NMI
+    STRI 0x00000010, R0       ; Write bits 31:16 of NMI vector
 
-    ; Bits 15:0 de nmi_handler → calculés par CALL/JMP vers le label
-    ; On utilise CALL pour obtenir l'adresse exacte dans la pile,
-    ; puis on la lit pour extraire les bits bas.
-    ; ALTERNATIVE SIMPLE : puisque le code est linéaire,
-    ; on peut calculer l'offset à la main OU utiliser la technique
-    ; du label direct avec une instruction STRI+label.
+    ; Bits 15:0 of nmi_handler → calculated by CALL/JMP to label
+    ; We use CALL to get exact address on stack,
+    ; then read it to extract lower bits.
+    ; ALTERNATIVE SIMPLE: since code is linear,
+    ; we can calculate offset by hand OR use technique
+    ; of direct label with STRI+label instruction.
     ;
-    ; TECHNIQUE UTILISÉE ICI :
-    ; L'assembleur résout les labels dans les imm32 (type 2).
-    ; STRI (opcode 0x02, type 2) accepte imm32 = adresse destination.
-    ; Mais on veut stocker la VALEUR du label, pas y écrire.
-    ; On passe donc par un registre :
-    ;   LI  Rd, imm16  → ne peut pas contenir un label (trop grand)
-    ; On utilise donc CALL nmi_handler pour pousser l'adresse sur la pile
-    ; puis on la récupère. C'est la méthode la plus propre en ST32X ASM.
+    ; TECHNIQUE USED HERE:
+    ; Assembler resolves labels in imm32 (type 2).
+    ; STRI (opcode 0x02, type 2) accepts imm32 = destination address.
+    ; But we want to store the LABEL VALUE, not write to it.
+    ; So we pass through a register:
+    ;   LI  Rd, imm16 → cannot contain a label (too large)
+    ; So we use CALL nmi_handler to push address on stack
+    ; then retrieve it. This is cleanest method in ST32X ASM.
 
-    CALL get_nmi_addr         ; Pousse l'adresse de retour puis saute
-    JMP install_done          ; Jamais atteint directement
+    CALL get_nmi_addr         ; Pushes return address then jumps
+    JMP install_done          ; Never reached directly
 
 get_nmi_addr:
-    ; Au moment du CALL, le CPU a poussé l'adresse de retour
-    ; (= adresse de l'instruction JMP install_done) sur la pile.
-    ; On veut stocker l'adresse de nmi_handler.
-    ; MÉTHODE DIRECTE : utiliser JMP nmi_handler pour obtenir
-    ; l'encodage imm32, mais on ne peut pas extraire la valeur.
+    ; At CALL time, CPU pushed return address
+    ; (= address of JMP install_done) onto stack.
+    ; We want to store nmi_handler address.
+    ; DIRECT METHOD: use JMP nmi_handler to get
+    ; the imm32 encoding, but cannot extract value.
     ;
-    ; SOLUTION FINALE : écrire directement la valeur basse en dur.
-    ; L'assembleur nous donne l'adresse du label dans les logs de passe 1.
-    ; On met donc une VALEUR PLACEHOLDER que l'on remplacera si besoin.
+    ; FINAL SOLUTION: write lower value directly.
+    ; Assembler gives us label address in pass 1 logs.
+    ; So we put a PLACEHOLDER VALUE that can be replaced if needed.
     ;
-    ; EN PRATIQUE : pour ST32X, le code tient dans quelques Ko.
-    ; nmi_handler sera toujours dans la plage 0x00200000-0x00200FFF.
-    ; On utilise l'adresse du label via JMP qui est de type 2 (imm32).
+    ; IN PRACTICE: for ST32X, code fits in few KB.
+    ; nmi_handler will always be in range 0x00200000-0x00200FFF.
+    ; We use label address via JMP which is type 2 (imm32).
     ;
-    ; La vraie solution propre : utiliser 2 STRI imm32 avec le label
-    ; découpé. Comme l'assembleur ne supporte pas les expressions
-    ; arithmétiques sur labels (HI(label), LO(label)), on adopte
-    ; la méthode suivante : stocker directement via STR32 simulé.
+    ; Real clean solution: use 2 STRI imm32 with label
+    ; split. Since assembler doesn't support arithmetic on labels
+    ; (HI(label), LO(label)), we adopt following method:
+    ; store directly via simulated STR32.
 
-    ; Dépiler l'adresse de retour qu'on n'utilise pas
+    ; Pop unused return address
     POP R0
-    ; R0 contient maintenant l'adresse de "JMP install_done" + correction
-    ; En fait on veut nmi_handler, qui est APRÈS tout ce code.
-    ; On va utiliser la méthode la plus directe : écrire un JMP nmi_handler
-    ; dans une fonction dédiée et lire le binaire produit.
+    ; R0 now contains address of "JMP install_done" + correction
+    ; Actually we want nmi_handler, which comes AFTER all this code.
+    ; We'll use most direct method: write JMP nmi_handler
+    ; in dedicated function and read produced binary.
 
-    ; ABANDON de cette approche complexe.
-    ; MÉTHODE FINALE RETENUE (voir note ci-dessous).
     JMP install_done
 
-;=========================================================================
-; NOTE SUR LE VECTEUR NMI :
+;=============================================================================
+; NOTE ON NMI VECTOR:
 ;
-; La méthode la plus simple et robuste en ST32X est :
-;   - main.c initialise cpu->nmi_vector = adresse_de nmi_handler
-;     avant de lancer l'émulation (hard-codé côté C).
-;   - OU : on écrit les 32 bits du vecteur en deux passes :
+; Simplest robust method in ST32X is:
+;   - main.c initializes cpu->nmi_vector = address_of nmi_handler
+;     before launching emulation (hard-coded in C).
+;   - OR: we write 32-bit vector in two passes:
 ;       STRI 0x00000010, R_haute  (bits 31:16)
 ;       STRI 0x00000012, R_basse  (bits 15:0)
-;     avec R_haute et R_basse chargés via LI après assemblage.
+;     with R_haute and R_basse loaded via LI after assembly.
 ;
-; Pour ce programme de démo, on simplifie : on utilise l'approche
-; directe où main.c set cpu->nmi_pending via gpu_render_frame,
-; et VSYNC suspend le CPU. Le vecteur NMI est installé en C
-; (ajout d'une ligne dans main.c avant le lancement).
+; For this demo program, we simplify: use direct approach
+; where main.c sets cpu->nmi_pending via gpu_render_frame,
+; and VSYNC suspends CPU. NMI vector is installed in C
+; (add one line in main.c before launch).
 ;
-; Dans input.asm on garde donc le style original avec VSYNC +
-; boucle, et nmi_handler est appelé automatiquement par le CPU
-; à chaque VBlank, interrompant la boucle VSYNC+JMP.
-;=========================================================================
+; So input.asm keeps original style with VSYNC + loop,
+; and nmi_handler is called automatically by CPU at each VBlank,
+; interrupting the VSYNC+JMP loop.
+;=============================================================================
 
-;=========================================================================
-; INIT SYSTÈME
-;=========================================================================
+;=============================================================================
+; INIT SYSTEM
+;=============================================================================
 
 init_system:
     LI R1, 0x00
@@ -229,24 +227,23 @@ init_system:
     LI R3, 0
     RET
 
-;=========================================================================
+;=============================================================================
 ; GPU ENABLE
-;=========================================================================
+;=============================================================================
 
 gpu_enable:
     LI R0, 0x0001
     STRI 0x00100200, R0
     RET
 
-;=========================================================================
+;=============================================================================
 ; PALETTE 0
-;   0=Transparent  1=Rouge   2=Vert    3=Jaune
-;   4=Violet       5=Orange  6=Gris    7=Marron
-;=========================================================================
-;=========================================================================
+;   0=Transparent  1=Red     2=Green  3=Yellow
+;   4=Violet       5=Orange  6=Gray   7=Brown
+;
 ; Palette base = GPU_MMIO_START + 0x300 = 0x00100200 + 0x300 = 0x00100500
 ; palette[0][N] @ 0x00100500 + N*2
-;=========================================================================
+;=============================================================================
 
 setup_palette:
     LI R0, 0x0000
@@ -259,15 +256,15 @@ setup_palette:
     STRI 0x00100506, R0
     LI R0, 0xF81F
     STRI 0x00100508, R0
-    LI R0, 0xFC00
+    LI R0, 0xFBC0
     STRI 0x0010050A, R0
-    LI R0, 0x8410
+    LI R0, 0x7BCF
     STRI 0x0010050C, R0
-    LI R0, 0x5145
+    LI R0, 	0x82C6
     STRI 0x0010050E, R0
     RET
 
-;=========================================================================
+;=============================================================================
 ; CREATE TILES IN VRAM
 ; MSET with value N fills bytes 0xNN -> GPU reads tile index N*257
 ;
@@ -277,8 +274,8 @@ setup_palette:
 ; Tile 1028 (N=4) = Violet    @ VRAM+0x40400  (RAM 0x000C0400)
 ; Tile 1285 (N=5) = Orange    @ VRAM+0x50500  (RAM 0x000D0500)
 ; Tile 1542 (N=6) = Gray      @ VRAM+0x60600  (RAM 0x000E0600)
-; Tile 1799 (N=7) = Dark Blue @ VRAM+0x706C0  (RAM 0x000F06C0)
-;=========================================================================
+; Tile 1799 (N=7) = Brown	  @ VRAM+0x706C0  (RAM 0x000F06C0)
+;=============================================================================
 
 create_tiles:
     LI R1, 1
@@ -318,18 +315,18 @@ create_tiles:
     MSET
     RET
 
-;=========================================================================
+;=============================================================================
 ; SETUP BACKGROUNDS
 ;
-; BG0 (red/darkblue, rows 8-13): tilemap @ VRAM+0x1000
+; BG0 (red/violet, rows 8-13): tilemap @ VRAM+0x1000
 ;   Band start = VRAM+0x1000 + 8*64 = VRAM+0x1200 = 0x00081200
 ;
-; BG1 (green/blue, rows 4-7): tilemap @ VRAM+0x2000
+; BG1 (green/orange, rows 4-7): tilemap @ VRAM+0x2000
 ;   Band start = VRAM+0x2000 + 4*64 = VRAM+0x2100 = 0x00082100
 ;
-; BG2 (yellow/red, rows 0-3): tilemap @ VRAM+0x3000
+; BG2 (yellow/gray, rows 0-3): tilemap @ VRAM+0x3000
 ;   Band start = VRAM+0x3000 + 0*64 = VRAM+0x3000 = 0x00083000
-;=========================================================================
+;=============================================================================
 
 setup_backgrounds:
     LI R0, 0x0001
@@ -344,7 +341,7 @@ setup_backgrounds:
     LI R1, 0x1200
     LIH R1, 0x0008
     LI R2, 1
-    LI R3, 6
+    LI R3, 4
     LI R4, 6
     CALL fill_checkerband
 
@@ -360,7 +357,7 @@ setup_backgrounds:
     LI R1, 0x2100
     LIH R1, 0x0008
     LI R2, 2
-    LI R3, 6
+    LI R3, 5
     LI R4, 4
     CALL fill_checkerband
 
@@ -376,15 +373,15 @@ setup_backgrounds:
     LI R1, 0x3000
     LIH R1, 0x0008
     LI R2, 3
-    LI R3, 5
+    LI R3, 6
     LI R4, 4
     CALL fill_checkerband
 
     RET
 
-;=========================================================================
+;=============================================================================
 ; FILL_CHECKERBAND
-; R1=adresse VRAM de départ, R2=tuile A, R3=tuile B, R4=nb lignes
+; R1=VRAM start address, R2=tile A, R3=tile B, R4=num rows
 ; STR8 Rd, Rs -> mem8[Rd] = Rs
 ;
 ; Parameters:
@@ -399,11 +396,10 @@ setup_backgrounds:
 ;
 ; Registers used: R5(row_ctr), R6(write_ptr), R7(tmp), R8(tmp),
 ;                 R9(first_tile), R10(second_tile)
-;
 ; STR8 Rs, Rd -> mem8[Rd] = Rs
 ; To write tile byte T to address P: STR8 T, P (where T=reg, P=reg)
 ; Then ADDI P, 1
-;=========================================================================
+;=============================================================================
 
 fill_checkerband:
     LI R5, 0
@@ -453,9 +449,9 @@ fcb_next_row:
 fcb_done:
     RET
 
-;=========================================================================
-; SETUP HUD — bande orange, ligne 0
-;=========================================================================
+;=============================================================================
+; SETUP HUD — orange band, line 0
+;=============================================================================
 
 setup_hud:
     LI R0, 0x0001
@@ -464,22 +460,22 @@ setup_hud:
     STRI 0x00100250, R0
     LI R0, 0x0000
     STRI 0x00100252, R0
-    LI R1, 5
+    LI R1, 4
     LI R2, 0x5000
     LIH R2, 0x0008
     LI R3, 64
     MSET
     RET
 
-;=========================================================================
+;=============================================================================
 ; SETUP SPRITES
 ;
-; Sprite 0 : Player (dark blue, tile 1799) @ (152, 100), priority 2
+; Sprite 0 : Player (brown, tile 1799) @ (152, 100), priority 2
 ; Sprite 1 : Target (violet,    tile 1028) @ (200,  90), priority 2
 ;
 ; Sprite N base: 0x00104500 + N*16
 ; Offsets: +0=x +2=y +4=tile +6=pal|pri +8=flags +A=scale_x +C=scale_y
-;=========================================================================
+;=============================================================================
 
 setup_sprites:
     LI R0, 152
@@ -511,11 +507,11 @@ setup_sprites:
     STRI 0x0010451C, R0
     RET
 
-;=========================================================================
+;=============================================================================
 ; SETUP APU
 ; CH0 : 441 Hz square wave @ 0x00010000 (100 bytes, loop)
-; CH1 : 882 Hz square wave @ 0x00010100 (50  bytes, one-shot)
-;=========================================================================
+; CH1 : 882 Hz square wave @ 0x00010100 (50 bytes, one-shot)
+;=============================================================================
 
 setup_apu:
     LI R1, 200
@@ -581,30 +577,30 @@ setup_apu:
     STRI 0x00100930, R0
     RET
 
-;=========================================================================
-; NMI HANDLER — Appelé automatiquement par le CPU à chaque VBlank
+;=============================================================================
+; NMI HANDLER — Called automatically by CPU at each VBlank
 ;
-; Le CPU a déjà sauvegardé PC + flags sur la pile avant de sauter ici.
-; On NE DOIT PAS modifier R15 (SP) sans précaution.
-; On doit terminer par RTI (opcode 0xF8) qui restaure tout.
+; CPU has already saved PC + flags to stack before jumping here.
+; MUST NOT modify R15 (SP) without precautions.
+; Must end with RTI (opcode 0xF8) which restores everything.
 ;
-; IMPORTANT : ne pas utiliser PUSH/POP ici sans les équilibrer,
-; car RTI dépile exactement ce que le CPU a empilé (flags + PC).
+; IMPORTANT: do not use PUSH/POP without balancing,
+; because RTI pops exactly what CPU pushed (flags + PC).
 ;
-; Ce handler est appelé UNE FOIS PAR FRAME, garanti.
-;=========================================================================
+; This handler is called ONCE PER FRAME, guaranteed.
+;=============================================================================
 
 nmi_handler:
     CALL update_scroll
     CALL update_sprite
     CALL check_buttons
     CALL check_collision
-    RTI                       ; Restaure flags + PC, retour au code interrompu
+    RTI                       ; Restores flags + PC, return to interrupted code
 
-;=========================================================================
-; UPDATE_SCROLL — Parallax auto-scrolling
+;=============================================================================
+; UPDATE_SCROLL — Auto-parallax scrolling
 ; BG0 +3 px/frame, BG1 +2 px/frame, BG2 +1 px/frame
-;=========================================================================
+;=============================================================================
 
 update_scroll:
     LDRI R0, 0x00000200
@@ -623,9 +619,9 @@ update_scroll:
     STRI 0x00100230, R0
     RET
 
-;=========================================================================
-; UPDATE_SPRITE — Mouvement D-PAD (controller 0 @ 0x00100112)
-;=========================================================================
+;=============================================================================
+; UPDATE_SPRITE — D-PAD movement (controller 0 @ 0x00100112)
+;=============================================================================
 
 update_sprite:
     LDRI R1, 0x00100112
@@ -672,9 +668,9 @@ dpad_write:
     STRI 0x00104502, R3
     RET
 
-;=========================================================================
-; CHECK_BUTTONS — Son sur appui bouton (CH1 one-shot)
-;=========================================================================
+;=============================================================================
+; CHECK_BUTTONS — Sound on button press (CH1 one-shot)
+;=============================================================================
 
 check_buttons:
     LDRI R1, 0x00100110
@@ -689,10 +685,10 @@ check_buttons:
 btn_none:
     RET
 
-;=========================================================================
-; CHECK_COLLISION — Son de collision sur CH0 (loop)
-; Ne jamais écrire dans COLLISION_STATUS depuis l'ASM.
-;=========================================================================
+;=============================================================================
+; CHECK_COLLISION — Collision sound on CH0 (loop)
+; Never write to COLLISION_STATUS from ASM.
+;=============================================================================
 
 check_collision:
     LDRI R7, 0x00100262
