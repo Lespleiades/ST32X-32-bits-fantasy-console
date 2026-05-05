@@ -459,4 +459,6 @@ This project is licensed under the **Creative Commons** — see the [`LICENSE.md
 
 **⭐ If you find this project interesting, consider giving it a star!**
 
+Copyright (C) 2026 - Peneaux Benjamin
+
 </div>
