@@ -128,7 +128,7 @@ The CPU emulation follows a strict **Reduced Instruction Set Computer (RISC)** p
 | Tile size 	| 16×16 pixels, 8bpp (256 colors per tile) 							|
 | Tilemap 		| 32×32 tiles per layer 											|
 | Sprites 		| 256 hardware sprites with scaling, H/V flip, 4 priority levels 	|
-| Palettes 		| 32 palettes × 256 colors, RGB555 format 							|
+| Palettes 		| 32 palettes × 256 colors, RGB565 format 							|
 | Scrolling 	| Per-layer pixel-perfect hardware scrolling 						|
 | Collision 	| Hardware sprite-sprite AABB detection 							|
 | Resolutions 	| 320×224 (4:3) or 400×224 (16:9) 									|
