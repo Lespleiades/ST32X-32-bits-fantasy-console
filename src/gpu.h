@@ -5,24 +5,24 @@
 #include <stdbool.h>
 
 /* =========================================================
-   ST32X GPU - Architecture 2D
+   ST32X GPU - 2D Architecture
    =========================================================
    
-   Plans d'affichage (du fond vers l'avant):
-   - BG2: Arrière-plan lointain (parallax lent)
-   - BG1: Arrière-plan moyen (parallax moyen)
-   - BG0: Plan de jeu principal (playfield)
-   - SPRITES: Objets mobiles avec priorité
-   - FG: Premier plan (passe devant tout)
-   - HUD: Interface fixe (pas de scrolling)
+   Display layers (back to front):
+   - BG2: Distant background (slow parallax)
+   - BG1: Midground background (medium parallax)
+   - BG0: Main playfield layer
+   - SPRITES: Moving objects with priority
+   - FG: Foreground layer (passesthru everything)
+   - HUD: Fixed overlay (no scrolling)
    
-   Caractéristiques:
-   - Scrolling hardware pixel-perfect
-   - Tuiles 16x16 pixels, 8bpp (256 couleurs indexées)
-   - Palettes RGB555 (32768 couleurs)
-   - Sprites avec scaling/rotation
-   - Collision hardware Sprite-Sprite et Sprite-Tile
-   - Mode raycasting pour fausse 3D
+   Features:
+   - Hardware pixel-perfect scrolling
+   - 16x16 pixel tiles, 8bpp (256 indexed colors)
+   - RGB555 palettes (32768 colors)
+   - Sprites with scaling/rotation
+   - Hardware Sprite-Sprite and Sprite-Tile collision
+   - Raycasting mode for fake 3D
 ========================================================= */
 
 // GPU MMIO addresses (defined in cpu.h but repeated here for clarity)
@@ -35,39 +35,39 @@
 #define VRAM_SIZE      0x00080000
 
 // Display configuration
-#define MAX_SPRITES    256          // 256 sprites max
-#define MAX_PALETTES   32           // 32 palettes de 256 couleurs
-#define PALETTE_SIZE   256          // 256 couleurs par palette
+#define MAX_SPRITES    256          // Maximum 256 sprites
+#define MAX_PALETTES   32           // 32 palettes of 256 colors each
+#define PALETTE_SIZE   256          // 256 colors per palette
 
-/* Résolutions supportées */
+/* Supported resolutions */
 #define SCREEN_WIDTH_4_3   320
 #define SCREEN_WIDTH_16_9  400
 #define SCREEN_HEIGHT      224
 
-/* Tailles de tuiles */
-#define TILE_SIZE      16           // Tuiles 16x16 pixels
-#define TILE_PIXELS    256          // 16 * 16 = 256 pixels par tuile
-#define TILEMAP_WIDTH  32           // 32 tuiles de large
-#define TILEMAP_HEIGHT 32           // 32 tuiles de haut
+/* Tile sizes */
+#define TILE_SIZE      16           // 16x16 pixel tiles
+#define TILE_PIXELS    256          // 16 * 16 = 256 pixels per tile
+#define TILEMAP_WIDTH  32           // 32 tiles wide
+#define TILEMAP_HEIGHT 32           // 32 tiles high
 
 /* =========================================================
-   STRUCTURE SPRITE
+   SPRITE STRUCTURE
 ========================================================= */
 typedef struct {
-    uint16_t x, y;              // Position à l'écran
-    uint16_t tile_index;        // Index de la tuile dans VRAM
-    uint8_t  palette;           // Numéro de palette (0-31)
-    uint8_t  priority;          // Priorité d'affichage (0=derrière, 3=devant)
+    uint16_t x, y;              // Screen position
+    uint16_t tile_index;        // Tile index in VRAM
+    uint8_t  palette;           // Palette number (0-31)
+    uint8_t  priority;          // Display priority (0=behind, 3=in front)
     
-    // Flags de contrôle (8 bits)
+    // Control flags (8 bits)
     union {
         uint8_t flags;
         struct {
-            uint8_t hflip     : 1;  // Flip horizontal
-            uint8_t vflip     : 1;  // Flip vertical
-            uint8_t enabled   : 1;  // Sprite activé
+            uint8_t hflip     : 1;  // Horizontal flip
+            uint8_t vflip     : 1;  // Vertical flip
+            uint8_t enabled   : 1;  // Sprite enabled
             uint8_t size_mode : 2;  // 00=16x16, 01=32x32, 10=64x64, 11=custom
-            uint8_t reserved  : 3;  // Réservé
+            uint8_t reserved  : 3;  // Reserved
         };
     };
     
@@ -75,90 +75,90 @@ typedef struct {
     uint16_t scale_x;
     uint16_t scale_y;
     
-    // Collision box (optionnel)
+    // Collision box (optional)
     uint8_t hitbox_w, hitbox_h;
 } GPU_Sprite;
 
 /* =========================================================
-   STRUCTURE GPU PRINCIPALE
+   MAIN GPU STRUCTURE
 ========================================================= */
 typedef struct {
-    /* === REGISTRES DE CONTRÔLE === */
-    uint16_t CTRL;              // Registre de contrôle principal
-    uint16_t STATUS;            // Registre de statut
+    /* === CONTROL REGISTERS === */
+    uint16_t CTRL;              // Main control register
+    uint16_t STATUS;            // Status register
     
-    /* === PLANS DE FOND (BG0, BG1, BG2) === */
-    uint16_t BG_SCROLL_X[3];    // Scrolling horizontal par plan
-    uint16_t BG_SCROLL_Y[3];    // Scrolling vertical par plan
-    uint16_t BG_TILEMAP_BASE[3]; // Adresse de base de la tilemap (offset dans VRAM)
-    uint16_t BG_TILESET_BASE[3]; // Adresse de base du tileset (offset dans VRAM)
-    uint16_t BG_CTRL[3];        // Contrôle par plan (enable, priorité, etc.)
+    /* === BACKGROUND LAYERS (BG0, BG1, BG2) === */
+    uint16_t BG_SCROLL_X[3];    // Horizontal scroll per layer
+    uint16_t BG_SCROLL_Y[3];    // Vertical scroll per layer
+    uint16_t BG_TILEMAP_BASE[3]; // Base address of tilemap (VRAM offset)
+    uint16_t BG_TILESET_BASE[3]; // Base address of tileset (VRAM offset)
+    uint16_t BG_CTRL[3];        // Per-layer control (enable, priority, etc.)
     
-    /* === PREMIER PLAN (FG) === */
+    /* === FOREGROUND LAYER (FG) === */
     uint16_t FG_SCROLL_X;
     uint16_t FG_SCROLL_Y;
     uint16_t FG_TILEMAP_BASE;
     uint16_t FG_TILESET_BASE;
     uint16_t FG_CTRL;
     
-    /* === HUD (INTERFACE FIXE) === */
+    /* === HUD (FIXED INTERFACE) === */
     uint16_t HUD_TILEMAP_BASE;
     uint16_t HUD_TILESET_BASE;
     uint16_t HUD_CTRL;
     
-    /* === MÉMOIRE === */
-    uint8_t  vram[VRAM_SIZE];                   // VRAM 512 KB
-    uint16_t palette[MAX_PALETTES][PALETTE_SIZE]; // 32 palettes x 256 couleurs RGB555
-    GPU_Sprite sprites[MAX_SPRITES];            // Table des sprites
+    /* === MEMORY === */
+    uint8_t  vram[VRAM_SIZE];                   // 512 KB VRAM
+    uint16_t palette[MAX_PALETTES][PALETTE_SIZE]; // 32 palettes x 256 colors RGB555
+    GPU_Sprite sprites[MAX_SPRITES];            // Sprite table
     
     /* === DMA === */
-    uint32_t dma_src;           // Source 32-bits (adresse absolue)
-    uint32_t dma_dst;           // Destination 32-bits (adresse absolue)
-    uint16_t dma_len;           // Longueur du transfert
-    uint16_t dma_ctrl;          // Contrôle (Start, Direction, etc.)
+    uint32_t dma_src;           // Source 32-bit (absolute address)
+    uint32_t dma_dst;           // Destination 32-bit (absolute address)
+    uint16_t dma_len;           // Transfer length
+    uint16_t dma_ctrl;          // Control (Start, Direction, etc.)
     
     /* === TIMING === */
-    uint16_t SCANLINE;          // Ligne de scan actuelle
-    uint16_t VBLANK_LINE;       // Ligne de début du VBlank
+    uint16_t SCANLINE;          // Current scanline
+    uint16_t VBLANK_LINE;       // Start line of VBlank
     
     /* === COLLISION === */
-    uint16_t COLLISION_CTRL;    // Contrôle de la détection de collision
-    uint16_t COLLISION_STATUS;  // Statut des collisions détectées
-    uint8_t  collision_map[MAX_SPRITES]; // Map de collision sprite-sprite
+    uint16_t COLLISION_CTRL;    // Collision detection control
+    uint16_t COLLISION_STATUS;  // Status of detected collisions
+    uint8_t  collision_map[MAX_SPRITES]; // Sprite-sprite collision map
     
-    /* === RAYCASTING (FAUSSE 3D) === */
-    uint16_t RAYCAST_CTRL;      // Contrôle du mode raycasting
+    /* === RAYCASTING (FAKE 3D) === */
+    uint16_t RAYCAST_CTRL;      // Raycasting mode control
     uint16_t RAYCAST_FOV;       // Field of View
-    uint16_t RAYCAST_HEIGHT;    // Hauteur des murs
+    uint16_t RAYCAST_HEIGHT;    // Wall heights
     
-    // Look-Up Tables pour raycasting
-    int16_t sin_lut[360];       // Table sin (degrés)
-    int16_t cos_lut[360];       // Table cos (degrés)
+    // Look-Up Tables for raycasting
+    int16_t sin_lut[360];       // Sin table (degrees)
+    int16_t cos_lut[360];       // Cos table (degrees)
     
     /* === FRAMEBUFFER === */
-    uint32_t framebuffer[400 * 240]; // Buffer de pixels 32 bits pour SDL (max 16:9)
+    uint32_t framebuffer[400 * 240]; // 32-bit pixel buffer for SDL (max 16:9)
     
-    /* === ÉTAT === */
+    /* === STATE === */
     bool vblank;
     bool enabled;
     uint8_t video_mode;         // 0=4:3 (320x224), 1=16:9 (400x224)
 } PB010381_GPU;
 
 /* =========================================================
-   FONCTIONS PUBLIQUES
+   PUBLIC FUNCTIONS
 ========================================================= */
 
-/* Initialisation */
+/* Initialization */
 void gpu_init(PB010381_GPU *gpu);
 
-/* Cycle GPU (1 scanline) */
+/* GPU cycle (1 scanline) */
 void gpu_step(PB010381_GPU *gpu);
 
-/* Accès MMIO */
+/* MMIO access */
 uint16_t gpu_read16(PB010381_GPU *gpu, uint32_t addr);
 void gpu_write16(PB010381_GPU *gpu, uint32_t addr, uint16_t value);
 
-/* Rendu */
+/* Rendering */
 void gpu_render_frame(PB010381_GPU *gpu);
 void gpu_render_bg(PB010381_GPU *gpu, int plane);
 void gpu_render_sprites(PB010381_GPU *gpu);
