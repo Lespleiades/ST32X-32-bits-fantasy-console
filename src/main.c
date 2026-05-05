@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 
-// Inclusion spécifique pour Windows/SDL2
+// Windows/SDL2 specific include
 #define SDL_MAIN_HANDLED
 #include <SDL2/SDL.h>
 
@@ -11,14 +11,41 @@
 
 #define WINDOW_SCALE  2
 
-// Callback audio SDL
+// SDL audio callback
 void audio_callback(void* userdata, Uint8* stream, int len) {
     PB010381_APU *apu = (PB010381_APU*)userdata;
-    apu_generate_samples(apu, (int16_t*)stream, len / 4);  // len / 4 car stéréo 16-bit
+    apu_generate_samples(apu, (int16_t*)stream, len / 4);  // len / 4 because stereo 16-bit
+}
+
+/* ==========================================
+   SYMBOL TABLE READER
+   Reads the .sym file produced by the assembler
+   and returns the address of a given label (or 0 if not found).
+========================================== */
+static uint32_t read_symbol(const char* sym_file, const char* label_name) {
+    FILE* f = fopen(sym_file, "r");
+    if (!f) return 0;
+
+    char line[256];
+    while (fgets(line, sizeof(line), f)) {
+        if (line[0] == '#' || line[0] == '\n') continue;  // skip comments/blank
+
+        char name[128];
+        uint32_t addr = 0;
+        // Format: "label_name 0xABCDEF01"
+        if (sscanf(line, "%127s 0x%X", name, &addr) == 2) {
+            if (strcmp(name, label_name) == 0) {
+                fclose(f);
+                return addr;
+            }
+        }
+    }
+    fclose(f);
+    return 0;
 }
 
 int main(int argc, char* argv[]) {
-    // Initialisation manuelle si nécessaire pour MSYS2
+    // Manual initialization if necessary for MSYS2
     SDL_SetMainReady();
 
     printf("========================================\n");
@@ -29,10 +56,10 @@ int main(int argc, char* argv[]) {
         printf("[SDL][ERROR] %s\n", SDL_GetError());
         return 1;
     }
-    printf("[SDL] Sous-systèmes initialisés.\n");
+    printf("[SDL] Subsystems initialized.\n");
 
     // ==========================================
-    // ALLOCATION & INITIALISATION MATÉRIEL
+    // DEVICE ALLOCATION & INITIALIZATION
     // ==========================================
     
     PB010381_CPU *cpu = malloc(sizeof(PB010381_CPU));
@@ -41,35 +68,35 @@ int main(int argc, char* argv[]) {
     PB010381_Controllers *controllers = malloc(sizeof(PB010381_Controllers));
     
     if (!cpu || !gpu || !apu || !controllers) {
-        printf("[ERROR] Allocation mémoire échouée!\n");
+        printf("[ERROR] Memory allocation failed!\n");
         return 1;
     }
 
-    // CRITIQUE : Mettre toute la structure CPU à zéro
+    // CRITICAL: Zero out entire CPU structure
     memset(cpu, 0, sizeof(PB010381_CPU));
     
-    // Initialisation GPU
+    // GPU initialization
     gpu_init(gpu);
     cpu->gpu = gpu;
     
-    // Initialisation APU
+    // APU initialization
     apu_init(apu);
     cpu->apu = apu;
     apu->system_ram = cpu->memory;
     
-    // Initialisation Controllers
+    // Controllers initialization
     controllers_init(controllers);
     cpu->controllers = controllers;
 
-    // === CONFIGURATION CPU - ADRESSAGE 32 BITS ===
+    // === CPU CONFIGURATION - 32-BIT ADDRESSING ===
     printf("[CPU] Configuration (32-bit linear addressing):\n");
     
-    // NOUVELLE CARTE MÉMOIRE :
+    // NEW MEMORY MAP:
     // - RAM : 0x00000000 - 0x0007FFFF (512 KB)
     // - ROM : 0x00200000 - 0x03FFFFFF (~62 MB)
-    cpu->PC = ROM_START;              // Programme commence à 0x00200000 (ROM)
-    cpu->R[15] = RAM_END - 3;         // Stack Pointer au sommet de la RAM (aligné sur 4 bytes)
-    cpu->halted = false;              // CPU actif
+    cpu->PC = ROM_START;              // Program starts at 0x00200000 (ROM)
+    cpu->R[15] = RAM_END - 3;         // Stack Pointer at top of RAM (4-byte aligned)
+    cpu->halted = false;              // CPU active
     
     printf("      PC (32-bit) = 0x%08X (ROM Start)\n", cpu->PC);
     printf("      SP (R15)    = 0x%08X (RAM Top, aligned)\n", cpu->R[15]);
@@ -77,19 +104,19 @@ int main(int argc, char* argv[]) {
     printf("      Memory Size = %d MB (0x%08X bytes)\n\n", 
            MEM_SIZE / (1024*1024), MEM_SIZE);
 
-    // Créer fenêtre avec la résolution par défaut (4:3)
+    // Create window with default resolution (4:3)
     int window_width = SCREEN_WIDTH_4_3 * WINDOW_SCALE;
     int window_height = SCREEN_HEIGHT * WINDOW_SCALE;
     
     SDL_Window* window = SDL_CreateWindow(
-        "ST16X Fantasy Console - v5.0 (512KB RAM/VRAM)",
+        "ST32X game test",
         SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
         window_width, window_height, 
         SDL_WINDOW_SHOWN
     );
 
     if (!window) {
-        printf("[SDL][ERROR] Fenêtre impossible : %s\n", SDL_GetError());
+        printf("[SDL][ERROR] Window creation failed: %s\n", SDL_GetError());
         return 1;
     }
 
@@ -101,9 +128,9 @@ int main(int argc, char* argv[]) {
         400, 240 
     );
 
-    printf("[SDL] Fenêtre et renderer créés.\n\n");
+    printf("[SDL] Window and renderer created.\n\n");
 
-    // === CONFIGURATION AUDIO SDL ===
+    // === AUDIO SDL CONFIGURATION ===
     SDL_AudioSpec want, have;
     SDL_zero(want);
     want.freq = APU_SAMPLE_RATE;
@@ -115,17 +142,17 @@ int main(int argc, char* argv[]) {
     
     SDL_AudioDeviceID audio_device = SDL_OpenAudioDevice(NULL, 0, &want, &have, 0);
     if (audio_device == 0) {
-        printf("[AUDIO][WARN] Impossible d'ouvrir le périphérique audio: %s\n", SDL_GetError());
+        printf("[AUDIO][WARN] Cannot open audio device: %s\n", SDL_GetError());
     } else {
-        printf("[AUDIO] Périphérique audio ouvert:\n");
-        printf("        Fréquence: %d Hz\n", have.freq);
-        printf("        Canaux: %d\n", have.channels);
+        printf("[AUDIO] Audio device opened:\n");
+        printf("        Frequency: %d Hz\n", have.freq);
+        printf("        Channels: %d\n", have.channels);
         printf("        Buffer: %d samples\n", have.samples);
-        SDL_PauseAudioDevice(audio_device, 0);  // Démarrer la lecture
+        SDL_PauseAudioDevice(audio_device, 0);  // Start playback
     }
 
     // ==========================================
-    // CHARGEMENT DE LA ROM
+    // ROM LOADING
     // ==========================================
     
     FILE *f = fopen("output.bin", "rb");
@@ -134,35 +161,35 @@ int main(int argc, char* argv[]) {
         size_t rom_size = ftell(f);
         fseek(f, 0, SEEK_SET);
         
-        // Charger directement à l'adresse ROM (0x00200000)
-        // Calcul de l'offset dans memory[]
+        // Load directly to ROM address (0x00200000)
+        // Calculate offset in memory[]
         uint32_t rom_offset = ROM_START - RAM_START;
         size_t bytes_read = fread(&cpu->memory[rom_offset], 1, rom_size, f);
         fclose(f);
         
-        printf("[ROM] Chargement réussi:\n");
-        printf("      Fichier       = output.bin\n");
-        printf("      Taille        = %zu octets (0x%zX)\n", rom_size, rom_size);
-        printf("      Adresse cible = 0x%08X (ROM)\n", ROM_START);
-        printf("      Offset mémoire= 0x%08X\n", rom_offset);
-        printf("      Octets lus    = %zu\n\n", bytes_read);
+        printf("[ROM] Load successful:\n");
+        printf("      File          = output.bin\n");
+        printf("      Size          = %zu bytes (0x%zX)\n", rom_size, rom_size);
+        printf("      Target address = 0x%08X (ROM)\n", ROM_START);
+        printf("      Memory offset = 0x%08X\n", rom_offset);
+        printf("      Bytes read    = %zu\n\n", bytes_read);
         
-        // Vérification : afficher les 16 premiers octets
-        printf("[ROM] Premiers octets (hexdump @ 0x%08X):\n      ", ROM_START);
+        // Verification: display first 16 bytes
+        printf("[ROM] First bytes (hexdump @ 0x%08X):\n      ", ROM_START);
         for (int i = 0; i < 16; i++) {
             printf("%02X ", cpu->memory[rom_offset + i]);
             if (i == 7) printf("\n      ");
         }
         printf("\n\n");
         
-        // Décoder la première instruction
+        // Decode first instruction
         uint16_t first_instr = (cpu->memory[rom_offset] << 8) | 
                                cpu->memory[rom_offset + 1];
         uint8_t first_op = (first_instr >> 8) & 0xFF;
         uint8_t first_rd = (first_instr >> 4) & 0x0F;
         uint8_t first_rs = first_instr & 0x0F;
         
-        printf("[ROM] Première instruction décodée:\n");
+        printf("[ROM] First instruction decoded:\n");
         printf("      Bytes  = %02X %02X\n", 
                cpu->memory[rom_offset], cpu->memory[rom_offset + 1]);
         printf("      Header = 0x%04X\n", first_instr);
@@ -171,47 +198,49 @@ int main(int argc, char* argv[]) {
         printf("      Rs     = R%d\n\n", first_rs);
         
     } else {
-        printf("[ROM][ERREUR] output.bin introuvable!\n");
-        printf("      Compilez d'abord avec : ./assembler input.asm output.bin\n\n");
+        printf("[ROM][ERROR] output.bin not found!\n");
+        printf("      Compile first with: ./assembler input.asm output.bin\n\n");
         return 1;
     }
 
     // ==========================================
-    // VÉRIFICATIONS MÉMOIRE
+    // MEMORY VERIFICATION
     // ==========================================
     
-    printf("[MEM] Carte mémoire (nouvelle organisation):\n");
-    printf("      RAM:        0x%08X - 0x%08X (%d KB)\n", 
+    printf("[MEM] Memory map (new organization):\n");
+    printf("      RAM:         0x%08X - 0x%08X (%d KB)\n", 
            RAM_START, RAM_END, RAM_SIZE / 1024);
-    printf("      VRAM:       0x%08X - 0x%08X (%d KB)\n", 
+    printf("      VRAM:        0x%08X - 0x%08X (%d KB)\n", 
            VRAM_START, VRAM_END, VRAM_SIZE / 1024);
-    printf("      I/O:        0x%08X - 0x%08X\n", 
+    printf("      I/O:         0x%08X - 0x%08X\n", 
            IO_START, IO_END);
-    printf("      Controllers:0x%08X - 0x%08X\n", 
+    printf("      Controllers: 0x%08X - 0x%08X\n", 
            CONTROLLER_MMIO_START, CONTROLLER_MMIO_END);
-    printf("      GPU:        0x%08X - 0x%08X\n", 
+    printf("      GPU:         0x%08X - 0x%08X\n", 
            GPU_MMIO_START, GPU_MMIO_END);
-    printf("      APU:        0x%08X - 0x%08X\n", 
+    printf("      APU:         0x%08X - 0x%08X\n", 
            APU_MMIO_START, APU_MMIO_END);
-    printf("      ROM:        0x%08X - 0x%08X (~%d MB)\n\n", 
+    printf("      ROM:         0x%08X - 0x%08X (~%d MB)\n\n", 
            ROM_START, ROM_END, ROM_SIZE / (1024*1024));
 
-	// === INSTALLATION DU VECTEUR NMI ===
-	// Chercher l'adresse de nmi_handler dans la ROM chargée.
-	// nmi_handler est le label qui suit setup_apu dans input.asm.
-	// D'après les logs d'assemblage (passe 1), son adresse apparaît
-	// dans "Label 'nmi_handler' @ 0xXXXXXXXX".
-	// On l'écrit directement en RAM aux adresses 0x10 et 0x12.
-
-	uint32_t nmi_addr = 0x0020049E; // remplacer par l'adresse réelle, visible dans les logs passe 1
-	// Écrire le vecteur 32-bit en RAM (big-endian, 2 x 16-bit)
+	// === NMI VECTOR INSTALLATION ===
+	// Read nmi_handler address from the .sym file produced by the assembler.
+	// This is robust to any code size change — no more hardcoded addresses.
+	uint32_t nmi_addr = read_symbol("output.sym", "nmi_handler");
+	if (nmi_addr == 0) {
+		printf("[NMI][ERROR] 'nmi_handler' not found in output.sym!\n");
+		printf("             Assemble first: ./assembler input.asm output.bin\n");
+		return 1;
+	}
+	printf("[NMI] Symbol 'nmi_handler' resolved to 0x%08X\n", nmi_addr);
+	// Write 32-bit vector to RAM (big-endian, 2 x 16-bit)
 	cpu->memory[0x10] = (nmi_addr >> 24) & 0xFF;
 	cpu->memory[0x11] = (nmi_addr >> 16) & 0xFF;
 	cpu->memory[0x12] = (nmi_addr >>  8) & 0xFF;
 	cpu->memory[0x13] = (nmi_addr >>  0) & 0xFF;
-	printf("[NMI] Vecteur installé @ 0x%08X\n", nmi_addr);
-	printf("[NMI] Contenu du handler (32 premiers octets) :\n");
-	uint32_t base = nmi_addr - RAM_START;   // conversion adresse → offset mémoire
+	printf("[NMI] Vector installed @ 0x%08X\n", nmi_addr);
+	printf("[NMI] Handler content (first 32 bytes) :\n");
+	uint32_t base = nmi_addr - RAM_START;   // address to memory offset conversion
 	for (int i = 0; i < 32; i++) {
 		printf("%02X ", cpu->memory[base + i]);
 		if ((i + 1) % 16 == 0) printf("\n");
@@ -219,11 +248,11 @@ int main(int argc, char* argv[]) {
 	printf("\n");
 
     // ==========================================
-    // BOUCLE PRINCIPALE
+    // MAIN LOOP
     // ==========================================
     
     printf("========================================\n");
-    printf("Démarrage de l'émulation...\n");
+    printf("Starting emulation...\n");
     printf("========================================\n\n");
 
     bool running = true;
@@ -234,22 +263,22 @@ int main(int argc, char* argv[]) {
     uint8_t last_video_mode = gpu->video_mode;
 
     while (running) {
-        // Gestion des événements SDL
+        // SDL event handling
         while (SDL_PollEvent(&ev)) {
             if (ev.type == SDL_QUIT) {
-                printf("\n[QUIT] Fermeture demandée par l'utilisateur.\n");
+                printf("\n[QUIT] User requested close.\n");
                 running = false;
             }
             if (ev.type == SDL_KEYDOWN && ev.key.keysym.sym == SDLK_ESCAPE) {
-                printf("\n[QUIT] Touche ESC pressée.\n");
+                printf("\n[QUIT] ESC key pressed.\n");
                 running = false;
             }
             
-            // Gestion des contrôleurs
+            // Controller handling
             if (ev.type == SDL_CONTROLLERDEVICEADDED) {
                 controller_connect(controllers, ev.cdevice.which);
             } else if (ev.type == SDL_CONTROLLERDEVICEREMOVED) {
-                // Trouver quel contrôleur a été déconnecté
+                // Find which controller was disconnected
                 for (int i = 0; i < MAX_CONTROLLERS; i++) {
                     if (controllers->controllers[i].connected && 
                         SDL_JoystickInstanceID(controllers->controllers[i].sdl_joystick) == ev.cdevice.which) {
@@ -260,21 +289,21 @@ int main(int argc, char* argv[]) {
             }
         }
         
-        // Mise à jour des contrôleurs
+        // Update controllers
         controllers_update(controllers);
 
-        // Exécution CPU (environ 1000 cycles par frame pour ~10 itérations de main_loop)
-        // Cela permet un scrolling fluide sans que scroll_x ne devienne trop grand
+        // CPU execution (~1000 cycles per frame for ~10 main_loop iterations)
+        // This enables smooth scrolling without scroll_x becoming too large
 		for (int i = 0; i < 1000 && !cpu->halted; i++) {
-			if (cpu->waiting_vblank) break;   // Ne pas exécuter si en attente VBlank
+			if (cpu->waiting_vblank) break;   // Don't execute if waiting for VBlank
 			cpu_step(cpu);
             
-            // Détection de boucle infinie
+            // Infinite loop detection
             if (cpu->PC == last_pc) {
                 stuck_counter++;
                 if (stuck_counter > 100) {
-                    printf("\n[CPU][WARN] Boucle infinie détectée à PC=0x%08X\n", cpu->PC);
-                    printf("            Arrêt de l'émulation.\n");
+                    printf("\n[CPU][WARN] Infinite loop detected at PC=0x%08X\n", cpu->PC);
+                    printf("            Stopping emulation.\n");
                     cpu->halted = true;
                     break;
                 }
@@ -284,20 +313,21 @@ int main(int argc, char* argv[]) {
             last_pc = cpu->PC;
         }
         
-        // Simuler une frame complète (224+ scanlines)
+        // Simulate a complete frame (224+ scanlines)
         for (int scanline = 0; scanline < 262; scanline++) {
             gpu_step(gpu);
         }
         
-        // Rendu de la frame
+        // Render the frame
         gpu_render_frame(gpu);
 
-		// === DÉCLENCHEMENT NMI VBLANK ===
-		// Seulement si le CPU attend réellement un VBlank (VSYNC exécuté)
-		// Sans ce garde, la NMI s'exécute pendant l'init et corrompt les registres
+		// === NMI VBLANK TRIGGER ===
+		// Only if CPU actually waiting for VBlank (VSYNC executed)
+		// Without this guard, NMI runs during init and corrupts registers
 		if (cpu->waiting_vblank) {
-			// Réinstaller le vecteur NMI à chaque frame (init_system le wipe avec MSET)
-			uint32_t nmi_addr = 0x00200486; // Adresse de nmi_handler (vérifier dans les logs passe 1)
+			// Reinstall NMI vector each frame (init_system wipes RAM 0x00–0x3FFF with MSET,
+			// which includes the NMI vector at 0x0010).
+			// nmi_addr was resolved from output.sym at startup — no hardcoded address.
 			cpu->memory[0x10] = (nmi_addr >> 24) & 0xFF;
 			cpu->memory[0x11] = (nmi_addr >> 16) & 0xFF;
 			cpu->memory[0x12] = (nmi_addr >>  8) & 0xFF;
@@ -307,39 +337,39 @@ int main(int argc, char* argv[]) {
 			cpu->waiting_vblank = false;
 		}
 
-        // Vérifier si le mode vidéo a changé et adapter la fenêtre
+        // Check if video mode changed and adjust window
         if (gpu->video_mode != last_video_mode) {
             last_video_mode = gpu->video_mode;
             int new_width = (gpu->video_mode == 1 ? SCREEN_WIDTH_16_9 : SCREEN_WIDTH_4_3) * WINDOW_SCALE;
             int new_height = SCREEN_HEIGHT * WINDOW_SCALE;
             SDL_SetWindowSize(window, new_width, new_height);
             SDL_SetWindowPosition(window, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED);
-            printf("[GPU] Mode vidéo changé : %s\n", gpu->video_mode ? "16:9" : "4:3");
+            printf("[GPU] Video mode changed: %s\n", gpu->video_mode ? "16:9" : "4:3");
         }
 
-        // Affichage avec le framebuffer
-        // Le framebuffer a une largeur fixe de 400 pixels (SCREEN_WIDTH_16_9)
-        // Le pitch doit toujours correspondre à cette largeur
-        int pitch = SCREEN_WIDTH_16_9 * 4;  // 400 * 4 = 1600 bytes par ligne
-
+        // Display using framebuffer
+        // Framebuffer has fixed width of 400 pixels (SCREEN_WIDTH_16_9)
+        // Pitch must always match this width
+        int pitch = SCREEN_WIDTH_16_9 * 4;  // 400 * 4 = 1600 bytes per line
         
-        // Mettre à jour toute la texture avec le framebuffer
+        
+        // Update entire texture with framebuffer
         SDL_UpdateTexture(texture, NULL, gpu->framebuffer, pitch);
         
-        // Définir la zone source à copier (seulement la partie active)
+        // Set source region to copy (only active portion)
         int screen_width = (gpu->video_mode == 1) ? SCREEN_WIDTH_16_9 : SCREEN_WIDTH_4_3;
         SDL_Rect src_rect;
         src_rect.x = 0;
         src_rect.y = 0;
-        src_rect.w = screen_width;  // 320 en 4:3, 400 en 16:9
+        src_rect.w = screen_width;  // 320 in 4:3, 400 in 16:9
         src_rect.h = SCREEN_HEIGHT;  // 224
         
-        // Rendre : copier uniquement la partie active de la texture vers la fenêtre
+        // Render: copy only active portion of texture to window
         SDL_RenderClear(renderer);
         SDL_RenderCopy(renderer, texture, &src_rect, NULL);
         SDL_RenderPresent(renderer);
 
-        // Vérification HALT
+        // HALT verification
         if (cpu->halted) {
             printf("\n========================================\n");
             printf("CPU HALTED\n");
@@ -347,7 +377,7 @@ int main(int argc, char* argv[]) {
             printf("PC final       : 0x%08X\n", cpu->PC);
             printf("Total cycles   : %llu\n", (unsigned long long)cpu->total_cycles);
             printf("Total frames   : %llu\n", (unsigned long long)frame_count);
-            printf("\n[CPU] État des registres:\n");
+            printf("\n[CPU] Register state:\n");
             for (int i = 0; i < 16; i++) {
                 printf("      R%-2d = 0x%08X", i, cpu->R[i]);
                 if (i == 15) printf(" (SP)");
@@ -360,7 +390,7 @@ int main(int argc, char* argv[]) {
             printf("      C = %d (Carry)\n", cpu->Flags.C);
             printf("      V = %d (Overflow)\n\n", cpu->Flags.V);
             
-            // Attendre 3 secondes avant de fermer
+            // Wait 3 seconds before closing
             SDL_Delay(3000);
             running = false;
         }
@@ -370,14 +400,14 @@ int main(int argc, char* argv[]) {
     }
 
     // ==========================================
-    // NETTOYAGE
+    // CLEANUP
     // ==========================================
     
     printf("========================================\n");
-    printf("Arrêt de l'émulation\n");
+    printf("Stopping emulation\n");
     printf("========================================\n");
-    printf("Total frames rendues : %llu\n", (unsigned long long)frame_count);
-    printf("Total cycles exécutés: %llu\n\n", (unsigned long long)cpu->total_cycles);
+    printf("Total frames rendered: %llu\n", (unsigned long long)frame_count);
+    printf("Total cycles executed: %llu\n\n", (unsigned long long)cpu->total_cycles);
     
     if (audio_device != 0) {
         SDL_CloseAudioDevice(audio_device);
@@ -395,7 +425,7 @@ int main(int argc, char* argv[]) {
     free(apu);
     free(controllers);
     
-    printf("Nettoyage terminé. Au revoir!\n");
+    printf("Cleanup complete. Goodbye!\n");
     
     return 0;
 }
