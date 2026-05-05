@@ -2,7 +2,8 @@
 ; Copyright (C) 2026 - Peneaux Benjamin 
 ; This program is free software; 
 ; you may redistribute and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation; 
-; either version 3 of the license or (at your discretion) any later version.
+; either version 3 of the license.
+; - GNU GENERAL PUBLIC LICENSE V3 -
 ;=============================================================================
 
 ;=============================================================================
