@@ -3,24 +3,24 @@
 #include <string.h>
 
 /* =========================================================
-   INITIALISATION
+   INITIALIZATION
 ========================================================= */
 
 void controllers_init(PB010381_Controllers *ctrl) {
     memset(ctrl, 0, sizeof(PB010381_Controllers));
     
-    // Initialiser le sous-système SDL GameController
+    // Initialize SDL GameController subsystem
     if (SDL_InitSubSystem(SDL_INIT_GAMECONTROLLER) < 0) {
-        printf("[CTRL][WARN] Impossible d'initialiser SDL GameController: %s\n", 
+        printf("[CTRL][WARN] Cannot initialize SDL GameController: %s\n", 
                SDL_GetError());
         return;
     }
     
-    printf("[CTRL] Sous-système initialisé\n");
+    printf("[CTRL] Subsystem initialized\n");
     
-    // Détecter les contrôleurs déjà connectés
+    // Detect already connected controllers
     int num_joysticks = SDL_NumJoysticks();
-    printf("[CTRL] %d manette(s) détectée(s)\n", num_joysticks);
+    printf("[CTRL] %d controller(s) detected\n", num_joysticks);
     
     for (int i = 0; i < num_joysticks && i < MAX_CONTROLLERS; i++) {
         if (SDL_IsGameController(i)) {
@@ -37,15 +37,15 @@ void controllers_shutdown(PB010381_Controllers *ctrl) {
     }
     
     SDL_QuitSubSystem(SDL_INIT_GAMECONTROLLER);
-    printf("[CTRL] Arrêt propre\n");
+    printf("[CTRL] Clean shutdown\n");
 }
 
 /* =========================================================
-   CONNEXION/DÉCONNEXION
+   CONNECTION/DISCONNECTION
 ========================================================= */
 
 void controller_connect(PB010381_Controllers *ctrl, int device_index) {
-    // Trouver un slot libre
+    // Find free slot
     int slot = -1;
     for (int i = 0; i < MAX_CONTROLLERS; i++) {
         if (!ctrl->controllers[i].connected) {
@@ -55,14 +55,14 @@ void controller_connect(PB010381_Controllers *ctrl, int device_index) {
     }
     
     if (slot == -1) {
-        printf("[CTRL] Impossible de connecter: tous les slots occupés\n");
+        printf("[CTRL] Cannot connect: all slots occupied\n");
         return;
     }
     
-    // Ouvrir le contrôleur
+    // Open controller
     SDL_GameController *gc = SDL_GameControllerOpen(device_index);
     if (!gc) {
-        printf("[CTRL][WARN] Impossible d'ouvrir le contrôleur %d: %s\n",
+        printf("[CTRL][WARN] Cannot open controller %d: %s\n",
                device_index, SDL_GetError());
         return;
     }
@@ -79,7 +79,7 @@ void controller_connect(PB010381_Controllers *ctrl, int device_index) {
     ctrl->connected_count++;
     
     const char *name = SDL_GameControllerName(gc);
-    printf("[CTRL] Manette %d connectée (Slot %d): %s\n", 
+    printf("[CTRL] Controller %d connected (Slot %d): %s\n", 
            device_index, slot, name ? name : "Unknown");
 }
 
@@ -99,11 +99,11 @@ void controller_disconnect(PB010381_Controllers *ctrl, int controller_index) {
     
     ctrl->connected_count--;
     
-    printf("[CTRL] Manette %d déconnectée\n", controller_index);
+    printf("[CTRL] Controller %d disconnected\n", controller_index);
 }
 
 /* =========================================================
-   MISE À JOUR
+   UPDATE
 ========================================================= */
 
 void controllers_update(PB010381_Controllers *ctrl) {
@@ -115,7 +115,7 @@ void controllers_update(PB010381_Controllers *ctrl) {
         c->buttons = 0;
         c->dpad = 0;
 
-        // ── Lecture via GameController API ──────────────────────────────
+        // ── Reading via GameController API ────────────────────────
         if (SDL_GameControllerGetButton(c->sdl_controller, SDL_CONTROLLER_BUTTON_A))
             c->buttons |= BTN_A;
         if (SDL_GameControllerGetButton(c->sdl_controller, SDL_CONTROLLER_BUTTON_B))
@@ -133,9 +133,9 @@ void controllers_update(PB010381_Controllers *ctrl) {
         if (SDL_GameControllerGetButton(c->sdl_controller, SDL_CONTROLLER_BUTTON_START))
             c->buttons |= BTN_START;
 
-        // ── Fallback : lecture joystick brute (indices physiques Xbox) ───
-        // Couvre les cas où GameController ne mappe pas tous les boutons
-        // (certains drivers xinput / Bluetooth / Xbox Series sur SDL2)
+        // ── Fallback: raw joystick reading (physical Xbox indices) ───
+        // Covers cases where GameController API doesn't map all buttons
+        // (some xinput / Bluetooth / Xbox Series drivers on SDL2)
         if (c->sdl_joystick) {
             int nb = SDL_JoystickNumButtons(c->sdl_joystick);
             if (nb > 0 && SDL_JoystickGetButton(c->sdl_joystick, 0)) c->buttons |= BTN_A;
@@ -148,7 +148,7 @@ void controllers_update(PB010381_Controllers *ctrl) {
             if (nb > 7 && SDL_JoystickGetButton(c->sdl_joystick, 7)) c->buttons |= BTN_START;
         }
 
-        // ── D-PAD ────────────────────────────────────────────────────────
+        // ── D-PAD ────────────────────────────────────────────────
         if (SDL_GameControllerGetButton(c->sdl_controller, SDL_CONTROLLER_BUTTON_DPAD_UP))
             c->dpad |= DPAD_UP;
         if (SDL_GameControllerGetButton(c->sdl_controller, SDL_CONTROLLER_BUTTON_DPAD_DOWN))
@@ -161,13 +161,13 @@ void controllers_update(PB010381_Controllers *ctrl) {
 }
 
 /* =========================================================
-   ACCÈS MMIO - LECTURE
+   MMIO ACCESS - READ
 ========================================================= */
 
 uint16_t controllers_read16(PB010381_Controllers *ctrl, uint32_t addr) {
     uint32_t off = addr - CONTROLLER_MMIO_START;
     
-    // Status global (0x00)
+    // Global status (0x00)
     if (off == 0x00) {
         uint16_t status = 0;
         for (int i = 0; i < MAX_CONTROLLERS; i++) {
@@ -178,7 +178,7 @@ uint16_t controllers_read16(PB010381_Controllers *ctrl, uint32_t addr) {
         return status;
     }
     
-    // Registres des contrôleurs (8 bytes par contrôleur)
+    // Controller registers (8 bytes per controller)
     // Offset 0x10 = Controller 0
     // Offset 0x18 = Controller 1, etc.
     if (off >= 0x10 && off < 0x10 + (MAX_CONTROLLERS * 8)) {
@@ -206,19 +206,19 @@ uint16_t controllers_read16(PB010381_Controllers *ctrl, uint32_t addr) {
 }
 
 /* =========================================================
-   ACCÈS MMIO - ÉCRITURE
+   MMIO ACCESS - WRITE
 ========================================================= */
 
 void controllers_write16(PB010381_Controllers *ctrl, uint32_t addr, uint16_t value) {
-    // Les contrôleurs sont en lecture seule
-    // (Pas de rumble ou LED dans cette version)
+    // Controllers are read-only
+    // (No rumble or LED support in this version)
     (void)ctrl;
     (void)addr;
     (void)value;
 }
 
 /* =========================================================
-   UTILITAIRES
+   UTILITIES
 ========================================================= */
 
 bool controller_button_pressed(Controller *ctrl, uint16_t button_mask) {
@@ -238,16 +238,16 @@ bool controller_button_just_released(Controller *ctrl, uint16_t button_mask) {
 ========================================================= */
 
 void controllers_debug_dump(PB010381_Controllers *ctrl) {
-    printf("\n========== CONTROLLERS DEBUG ==========\n");
-    printf("Connectés: %d / %d\n", ctrl->connected_count, MAX_CONTROLLERS);
+    printf("\n========== CONTROLLERS DEBUG ==========");
+    printf("Connected: %d / %d\n", ctrl->connected_count, MAX_CONTROLLERS);
     
     for (int i = 0; i < MAX_CONTROLLERS; i++) {
         Controller *c = &ctrl->controllers[i];
         if (!c->connected) continue;
         
         const char *name = SDL_GameControllerName(c->sdl_controller);
-        printf("\n--- Manette %d: %s ---\n", i, name ? name : "Unknown");
-        printf("Boutons: ");
+        printf("\n--- Controller %d: %s ---\n", i, name ? name : "Unknown");
+        printf("Buttons: ");
         if (c->buttons & BTN_A) printf("A ");
         if (c->buttons & BTN_B) printf("B ");
         if (c->buttons & BTN_X) printf("X ");
@@ -266,5 +266,5 @@ void controllers_debug_dump(PB010381_Controllers *ctrl) {
         printf("\n");
     }
     
-    printf("=======================================\n\n");
+    printf("===============================\n\n");
 }
