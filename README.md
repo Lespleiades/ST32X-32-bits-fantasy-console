@@ -252,6 +252,26 @@ main:
     LI  R15, 0xFFFC
     LIH R15, 0x0007         ; SP = 0x0007FFFC
 
+    ; --- INSTALL NMI DUMMY HANDLER ---
+    ; Write address of nmi_dummy to RAM 0x00000010 (NMI vector)
+    ; Bits 31:16 = 0x0020 (ROM upper part)
+    LI R0, 0x0020
+    STRI 0x00000010, R0
+    ; Bits 15:0 = lower part of nmi_dummy label address
+    ; We use a small trick: load the address into R0 using a CALL
+    CALL get_nmi_addr
+    JMP after_nmi_init
+
+get_nmi_addr:
+    ; Load low 16 bits of nmi_dummy into R0.
+    ; The assembler resolves the label and truncates to 16 bits.
+    ; The high 16 bits (0x0020) were already written by the STRI above.
+    ; NOTE: do NOT pop here — the return address is still on the stack.
+    LI R0, nmi_dummy        ; low 16 bits of nmi_dummy address
+    STRI 0x00000012, R0
+    RET
+
+after_nmi_init:
     ; --- PALETTE CONFIGURATION ---
     ; Palette base address = 0x00100500
     LI R0, 0xF800           ; Red color
@@ -305,7 +325,7 @@ main:
     STRI 0x00100200, R0     ; Turn on the GPU
 
 loop:
-    VSYNC                   ; Wait for Vertical Sync
+    VSYNC                   ; Wait for Vertical Sync (NMI will fire at VBlank)
 
     ; --- INPUT HANDLING ---
     LDRI R1, 0x00100112     ; Read Controller 0 D-PAD state
@@ -345,6 +365,12 @@ update_pos:
     STRI 0x00104502, R3     ; Write updated Y to OAM
 
     JMP loop
+
+; --- NMI DUMMY HANDLER ---
+; This function is called automatically by the CPU at each VBlank.
+; It must end with RTI.
+nmi_dummy:
+    RTI
 
 HALT
 ```
