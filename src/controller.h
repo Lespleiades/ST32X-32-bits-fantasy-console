@@ -6,14 +6,14 @@
 #include <SDL2/SDL.h>
 
 /* =========================================================
-   ST32X CONTROLLER - Support Manettes USB
+   ST32X CONTROLLER - USB Gamepad Support
    =========================================================
    
-   Jusqu'à 4 manettes type SNES:
-   - 8 boutons: A, B, X, Y, L, R, SELECT, START
-   - D-PAD 8 directions
+   Up to 4 SNES-style controllers:
+   - 8 buttons: A, B, X, Y, L, R, SELECT, START
+   - 8-way D-PAD
    
-   Mapping MMIO: 0x00100100 - 0x001001FF
+   MMIO mapping: 0x00100100 - 0x001001FF
 ========================================================= */
 
 // Controller MMIO (defined in cpu.h but repeated here for clarity)
@@ -22,7 +22,7 @@
 
 #define MAX_CONTROLLERS  4
 
-/* Masques de boutons */
+/* Button masks */
 #define BTN_A       (1 << 0)
 #define BTN_B       (1 << 1)
 #define BTN_X       (1 << 2)
@@ -32,19 +32,19 @@
 #define BTN_SELECT  (1 << 6)
 #define BTN_START   (1 << 7)
 
-/* Directions D-PAD */
+/* D-PAD directions */
 #define DPAD_UP     (1 << 0)
 #define DPAD_DOWN   (1 << 1)
 #define DPAD_LEFT   (1 << 2)
 #define DPAD_RIGHT  (1 << 3)
 
 /* =========================================================
-   STRUCTURE CONTRÔLEUR
+   CONTROLLER STRUCTURE
 ========================================================= */
 typedef struct {
-    // État des boutons (bitfield)
-    uint16_t buttons;       // Boutons actuellement pressés
-    uint16_t buttons_prev;  // Boutons du frame précédent
+    // Button state (bitfield)
+    uint16_t buttons;       // Currently pressed buttons
+    uint16_t buttons_prev;  // Buttons from previous frame
     
     // D-PAD (bitfield)
     uint8_t dpad;
@@ -53,41 +53,41 @@ typedef struct {
     SDL_GameController *sdl_controller;
     SDL_Joystick *sdl_joystick;
     
-    // État
+    // State
     bool connected;
     int device_index;
 } Controller;
 
 /* =========================================================
-   STRUCTURE GESTIONNAIRE DE CONTRÔLEURS
+   CONTROLLER MANAGER STRUCTURE
 ========================================================= */
 typedef struct {
     Controller controllers[MAX_CONTROLLERS];
     
-    // Statistiques
+    // Statistics
     int connected_count;
 } PB010381_Controllers;
 
 /* =========================================================
-   FONCTIONS PUBLIQUES
+   PUBLIC FUNCTIONS
 ========================================================= */
 
-/* Initialisation */
+/* Initialization */
 void controllers_init(PB010381_Controllers *ctrl);
 void controllers_shutdown(PB010381_Controllers *ctrl);
 
-/* Mise à jour (appelé chaque frame) */
+/* Update (called each frame) */
 void controllers_update(PB010381_Controllers *ctrl);
 
-/* Connexion/Déconnexion */
+/* Connection/disconnection */
 void controller_connect(PB010381_Controllers *ctrl, int device_index);
 void controller_disconnect(PB010381_Controllers *ctrl, int controller_index);
 
-/* Accès MMIO */
+/* MMIO access */
 uint16_t controllers_read16(PB010381_Controllers *ctrl, uint32_t addr);
 void controllers_write16(PB010381_Controllers *ctrl, uint32_t addr, uint16_t value);
 
-/* Utilitaires */
+/* Utilities */
 bool controller_button_pressed(Controller *ctrl, uint16_t button_mask);
 bool controller_button_just_pressed(Controller *ctrl, uint16_t button_mask);
 bool controller_button_just_released(Controller *ctrl, uint16_t button_mask);
