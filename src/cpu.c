@@ -102,7 +102,23 @@ uint16_t mem_read16(PB010381_CPU *cpu, uint32_t addr) {
     }
     
     uint16_t val = 0;
-    
+ 
+    // === INTERRUPT CONTROLLER MMIO ===
+    if (addr >= INT_MMIO_START && addr <= INT_MMIO_END) {
+        uint32_t off = addr - INT_MMIO_START;
+        if (off == 0x00) {
+            // Lecture : INT_CTRL
+            return (cpu->irq_enabled ? 0x0001 : 0x0000) |
+                   (cpu->nmi_pending ? 0x0002 : 0x0000);
+        }
+        if (off == 0x02) {
+            // Lecture : INT_STATUS
+            return (cpu->irq_pending ? 0x0001 : 0x0000) |
+                   (cpu->nmi_pending ? 0x0002 : 0x0000);
+        }
+        return 0;
+    }
+ 
     // === CONTROLLERS MMIO ===
     if (addr >= CONTROLLER_MMIO_START && addr <= CONTROLLER_MMIO_END) {
         if (cpu->controllers) {
@@ -160,7 +176,25 @@ void mem_write16(PB010381_CPU *cpu, uint32_t addr, uint16_t val) {
         #endif
         addr &= ~1;
     }
-    
+
+    // === INTERRUPT CONTROLLER MMIO ===
+    if (addr >= INT_MMIO_START && addr <= INT_MMIO_END) {
+        uint32_t off = addr - INT_MMIO_START;
+        if (off == 0x00) {
+            // INT_CTRL : bit0=IRQ enable, bit1=déclencher IRQ manuellement
+            cpu->irq_enabled = (val & 0x01) != 0;
+            if (val & 0x02) cpu->irq_pending = true;
+            printf("    [INT_CTRL] IRQ_EN=%d IRQ_TRIG=%d\n",
+                   cpu->irq_enabled, (val >> 1) & 1);
+        }
+        if (off == 0x02) {
+            // INT_STATUS : écriture 0 pour effacer les flags
+            if (!(val & 0x01)) cpu->irq_pending = false;
+            if (!(val & 0x02)) cpu->nmi_pending = false;
+        }
+        return;
+    }
+   
     // === CONTROLLERS MMIO ===
     if (addr >= CONTROLLER_MMIO_START && addr <= CONTROLLER_MMIO_END) {
         if (cpu->controllers) {
@@ -325,7 +359,66 @@ static inline void update_zn(PB010381_CPU *cpu, uint32_t val) {
 
 void cpu_step(PB010381_CPU *cpu) {
     if (cpu->halted) return;
-    
+
+    // ============================================================
+    // DISPATCH DES INTERRUPTIONS
+    // ============================================================
+
+    // --- NMI (Non-Maskable Interrupt) — priorité maximale ---
+    if (cpu->nmi_pending) {
+        cpu->nmi_pending    = false;
+        cpu->waiting_vblank = false;   // Réveille un VSYNC en attente
+
+        // Sauvegarder PC et flags sur la pile
+        push32(cpu, cpu->PC);
+        uint32_t flags_word = ((uint32_t)cpu->Flags.Z)          |
+                              ((uint32_t)cpu->Flags.N     << 1)  |
+                              ((uint32_t)cpu->Flags.C     << 2)  |
+                              ((uint32_t)cpu->Flags.V     << 3)  |
+                              ((uint32_t)cpu->irq_enabled << 4);
+        push32(cpu, flags_word);
+        cpu->irq_enabled = false;      // IRQ désactivées pendant le handler NMI
+
+        uint32_t vector = mem_read32(cpu, NMI_VECTOR_ADDR);
+        if (vector != 0) {
+            printf("    [NMI] Dispatch -> 0x%08X (PC sauvegardé: 0x%08X)\n",
+                   vector, cpu->PC);
+            cpu->PC = vector;
+        }
+        cpu->total_cycles++;
+        return;
+    }
+
+    // --- IRQ (masquable) ---
+    if (cpu->irq_pending && cpu->irq_enabled) {
+        cpu->irq_pending  = false;
+        cpu->irq_enabled  = false;     // Désactiver les IRQ pendant le handler
+
+        push32(cpu, cpu->PC);
+        uint32_t flags_word = ((uint32_t)cpu->Flags.Z)          |
+                              ((uint32_t)cpu->Flags.N     << 1)  |
+                              ((uint32_t)cpu->Flags.C     << 2)  |
+                              ((uint32_t)cpu->Flags.V     << 3)  |
+                              ((uint32_t)cpu->irq_enabled << 4);
+        push32(cpu, flags_word);
+
+        uint32_t vector = mem_read32(cpu, IRQ_VECTOR_ADDR);
+        if (vector != 0) {
+            printf("    [IRQ] Dispatch -> 0x%08X (PC sauvegardé: 0x%08X)\n",
+                   vector, cpu->PC);
+            cpu->PC = vector;
+        }
+        cpu->total_cycles++;
+        return;
+    }
+
+    // --- Si en attente de VBlank (VSYNC), suspendre l'exécution ---
+    if (cpu->waiting_vblank) return;
+
+    // ============================================================
+    // EXÉCUTION NORMALE
+    // ============================================================
+  
     uint32_t pc_before = cpu->PC;
     uint16_t header = fetch16(cpu);
     
@@ -354,6 +447,37 @@ void cpu_step(PB010381_CPU *cpu) {
             
         case 0xFB:  // SEC - Set Carry
             cpu->Flags.C = true;
+            break;
+
+        case 0xF8:  // RTI — Return from Interrupt
+        {
+            uint32_t flags_word = pop32(cpu);
+            cpu->Flags.Z       = (flags_word >> 0) & 1;
+            cpu->Flags.N       = (flags_word >> 1) & 1;
+            cpu->Flags.C       = (flags_word >> 2) & 1;
+            cpu->Flags.V       = (flags_word >> 3) & 1;
+            cpu->irq_enabled   = (flags_word >> 4) & 1;
+            uint32_t ret_addr  = pop32(cpu);
+            #if DEBUG_JUMPS
+            printf("    [RTI] PC: 0x%08X -> 0x%08X (IRQ enabled: %d)\n",
+                   pc_before, ret_addr, cpu->irq_enabled);
+            #endif
+            cpu->PC = ret_addr;
+        }
+        break;
+
+        case 0xF9:  // CLI — Clear Interrupt Enable
+            cpu->irq_enabled = false;
+            #if DEBUG_CPU_STEPS
+            printf("    [CLI] IRQ désactivées\n");
+            #endif
+            break;
+
+        case 0xFA:  // SEI — Set Interrupt Enable
+            cpu->irq_enabled = true;
+            #if DEBUG_CPU_STEPS
+            printf("    [SEI] IRQ activées\n");
+            #endif
             break;
 
         /* ===== CHARGEMENT/SAUVEGARDE AVEC ADRESSES 32-BIT ===== */
@@ -694,11 +818,11 @@ void cpu_step(PB010381_CPU *cpu) {
             break;
 
         /* ===== GPU ===== */
-        case 0x51:  // VSYNC
-            // Attendre le VBlank (simulé par une courte pause)
+        case 0x51:  // VSYNC — Attendre le prochain VBlank
             #if DEBUG_GPU_OPS
-            printf("    [VSYNC] Attente VBlank\n");
+            printf("    [VSYNC] Suspension jusqu'au prochain VBlank\n");
             #endif
+            cpu->waiting_vblank = true;   // CPU suspendu jusqu'à NMI VBlank
             break;
 
         /* ===== MÉMOIRE ===== */
