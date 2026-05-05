@@ -205,7 +205,7 @@ Download MSYS2 installer from:
 https://www.msys2.org/
 ```
 
-Open MSYS MSYS and isntall SDL2 libraries:
+Open MSYS2 MSYS and isntall SDL2 libraries:
  
 ```bash
 pacman -S mingw-w64-x86_64-gcc mingw-w64-x86_64-SDL2
