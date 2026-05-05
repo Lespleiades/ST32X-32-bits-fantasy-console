@@ -450,6 +450,7 @@ Please read the technical documentation before contributing to understand the ha
 ## License
 
 This project is licensed under the **Creative Commons** GPLv3 — see the [`LICENSE.md`](LICENSE.md) file for details.
+
 Copyright (C) 2026 - Peneaux Benjamin
 
 ---
