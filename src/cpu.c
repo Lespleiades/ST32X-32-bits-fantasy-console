@@ -11,21 +11,23 @@
 #define M_PI 3.14159265358979323846
 #endif
 
-/* ================= CONFIGURATION DEBUG ================= */
+/* ================= DEBUG CONFIGURATION ================= */
 
-// Activer/désactiver les différents niveaux de debug
-#define DEBUG_CPU_STEPS     1    // Afficher chaque instruction
-#define DEBUG_MEMORY_ACCESS 1    // Afficher les accès mémoire (verbeux - désactivé par défaut)
-#define DEBUG_STACK         1    // Afficher les opérations pile
-#define DEBUG_GPU_OPS       1    // Afficher les opérations GPU (désactivé par défaut)
-#define DEBUG_JUMPS         1    // Afficher les sauts/appels
-#define DEBUG_ALIGNMENT     1    // Afficher les warnings d'alignement
+// Enable/disable different debug levels
+#define DEBUG_CPU_STEPS     1    // Display each instruction
+#define DEBUG_MEMORY_ACCESS 1    // Display memory access (verbose - disabled by default)
+#define DEBUG_STACK         1    // Display stack operations
+#define DEBUG_GPU_OPS       1    // Display GPU operations (disabled by default)
+#define DEBUG_JUMPS         1    // Display jumps/calls
+#define DEBUG_ALIGNMENT     1    // Display alignment warnings
+#define DEBUG_NMI			1
+#define DEBUG_IRQ			1
 
-/* ================= ACCÈS MÉMOIRE UNIFIÉ ================= */
+/* ================= UNIFIED MEMORY ACCESS ================= */
 
 /**
- * CORRECTION: Fonctions unifiées d'accès mémoire 8-bit
- * Toutes les fonctions MCPY, DMA, MSET passent par ici
+ * CORRECTION: Unified 8-bit memory access functions
+ * All MCPY, DMA, MSET functions pass through here
  */
 uint8_t mem_read8(PB010381_CPU *cpu, uint32_t addr) {
     // === VRAM ===
@@ -54,14 +56,14 @@ uint8_t mem_read8(PB010381_CPU *cpu, uint32_t addr) {
         return 0xFF;
     }
     
-    // Adresse invalide
+    // Invalid address
     return 0xFF;
 }
 
 void mem_write8(PB010381_CPU *cpu, uint32_t addr, uint8_t val) {
-    // === Protection ROM ===
+    // === ROM Protection ===
     if (addr >= ROM_START && addr <= ROM_END) {
-        // Ignorer les écritures en ROM
+        // Ignore writes to ROM
         return;
     }
     
@@ -84,18 +86,18 @@ void mem_write8(PB010381_CPU *cpu, uint32_t addr, uint8_t val) {
     }
 }
 
-/* ================= ACCÈS MÉMOIRE 16-BIT ================= */
+/* ================= 16-BIT MEMORY ACCESS ================= */
 
 /**
- * Lecture 16 bits depuis la mémoire
- * Utilise mem_read8 pour cohérence
- * CORRECTION: Alignement forcé sur 2 octets pour éviter les bugs
+ * Read 16 bits from memory
+ * Uses mem_read8 for consistency
+ * CORRECTION: Forced 2-byte alignment to avoid bugs
  */
 uint16_t mem_read16(PB010381_CPU *cpu, uint32_t addr) {
-    // CRITIQUE: Alignement sur mot pair pour garantir la cohérence
+    // CRITICAL: Word-aligned address to ensure consistency
     if (addr & 1) {
         #if DEBUG_ALIGNMENT
-        printf("    [MEM_WARN] Lecture 16-bit non-alignée @ 0x%08X -> aligné à 0x%08X\n", 
+        printf("    [MEM_WARN] Unaligned 16-bit read @ 0x%08X -> aligned to 0x%08X\n", 
                addr, addr & ~1);
         #endif
         addr &= ~1;
@@ -107,12 +109,12 @@ uint16_t mem_read16(PB010381_CPU *cpu, uint32_t addr) {
     if (addr >= INT_MMIO_START && addr <= INT_MMIO_END) {
         uint32_t off = addr - INT_MMIO_START;
         if (off == 0x00) {
-            // Lecture : INT_CTRL
+            // Read: INT_CTRL
             return (cpu->irq_enabled ? 0x0001 : 0x0000) |
                    (cpu->nmi_pending ? 0x0002 : 0x0000);
         }
         if (off == 0x02) {
-            // Lecture : INT_STATUS
+            // Read: INT_STATUS
             return (cpu->irq_pending ? 0x0001 : 0x0000) |
                    (cpu->nmi_pending ? 0x0002 : 0x0000);
         }
@@ -131,7 +133,7 @@ uint16_t mem_read16(PB010381_CPU *cpu, uint32_t addr) {
         return 0;
     }
 	
-     // === APU MMIO ===
+	// === APU MMIO ===
     if (addr >= APU_MMIO_START && addr <= APU_MMIO_END) {
         if (cpu->apu) {
             val = apu_read16(cpu->apu, addr);
@@ -141,8 +143,8 @@ uint16_t mem_read16(PB010381_CPU *cpu, uint32_t addr) {
             return val;
         }
         return 0;
-    }  
-	
+    } 	
+    
     // === GPU MMIO ===
     if (addr >= GPU_MMIO_START && addr <= GPU_MMIO_END) {
         val = gpu_read16(cpu->gpu, addr);
@@ -152,7 +154,7 @@ uint16_t mem_read16(PB010381_CPU *cpu, uint32_t addr) {
         return val;
     }
     
-    // === Mémoire normale (via mem_read8 unifié) ===
+    // === Normal memory (via unified mem_read8) ===
     val = (mem_read8(cpu, addr) << 8) | mem_read8(cpu, addr + 1);
     
     #if DEBUG_MEMORY_ACCESS
@@ -163,15 +165,15 @@ uint16_t mem_read16(PB010381_CPU *cpu, uint32_t addr) {
 }
 
 /**
- * Écriture 16 bits en mémoire
- * Utilise mem_write8 pour cohérence
- * CORRECTION: Alignement forcé sur 2 octets
+ * Write 16 bits to memory
+ * Uses mem_write8 for consistency
+ * CORRECTION: Forced 2-byte alignment
  */
 void mem_write16(PB010381_CPU *cpu, uint32_t addr, uint16_t val) {
-    // CRITIQUE: Alignement sur mot pair pour garantir la cohérence
+    // CRITICAL: Word-aligned address to ensure consistency
     if (addr & 1) {
         #if DEBUG_ALIGNMENT
-        printf("    [MEM_WARN] Écriture 16-bit non-alignée @ 0x%08X -> aligné à 0x%08X\n", 
+        printf("    [MEM_WARN] Unaligned 16-bit write @ 0x%08X -> aligned to 0x%08X\n", 
                addr, addr & ~1);
         #endif
         addr &= ~1;
@@ -181,14 +183,16 @@ void mem_write16(PB010381_CPU *cpu, uint32_t addr, uint16_t val) {
     if (addr >= INT_MMIO_START && addr <= INT_MMIO_END) {
         uint32_t off = addr - INT_MMIO_START;
         if (off == 0x00) {
-            // INT_CTRL : bit0=IRQ enable, bit1=déclencher IRQ manuellement
+            // INT_CTRL: bit0=IRQ enable, bit1=trigger IRQ manually
             cpu->irq_enabled = (val & 0x01) != 0;
             if (val & 0x02) cpu->irq_pending = true;
+			#if DEBUG_IRQ
             printf("    [INT_CTRL] IRQ_EN=%d IRQ_TRIG=%d\n",
                    cpu->irq_enabled, (val >> 1) & 1);
+			#endif
         }
         if (off == 0x02) {
-            // INT_STATUS : écriture 0 pour effacer les flags
+            // INT_STATUS: write 0 to clear flags
             if (!(val & 0x01)) cpu->irq_pending = false;
             if (!(val & 0x02)) cpu->nmi_pending = false;
         }
@@ -226,7 +230,7 @@ void mem_write16(PB010381_CPU *cpu, uint32_t addr, uint16_t val) {
         return;
     }
     
-    // === Mémoire normale (via mem_write8 unifié) ===
+    // === Normal memory (via unified mem_write8) ===
     mem_write8(cpu, addr, (val >> 8) & 0xFF);
     mem_write8(cpu, addr + 1, val & 0xFF);
     
@@ -236,14 +240,14 @@ void mem_write16(PB010381_CPU *cpu, uint32_t addr, uint16_t val) {
 }
 
 /**
- * Lecture 32 bits depuis la mémoire
- * CORRECTION: Alignement forcé sur 4 octets
+ * Read 32 bits from memory
+ * CORRECTION: Forced 4-byte alignment
  */
 uint32_t mem_read32(PB010381_CPU *cpu, uint32_t addr) {
-    // CRITIQUE: Alignement sur 4 octets pour les accès 32-bit
+    // CRITICAL: 4-byte alignment for 32-bit accesses
     if (addr & 3) {
         #if DEBUG_ALIGNMENT
-        printf("    [MEM_WARN] Lecture 32-bit non-alignée @ 0x%08X -> aligné à 0x%08X\n", 
+        printf("    [MEM_WARN] Unaligned 32-bit read @ 0x%08X -> aligned to 0x%08X\n", 
                addr, addr & ~3);
         #endif
         addr &= ~3;
@@ -255,14 +259,14 @@ uint32_t mem_read32(PB010381_CPU *cpu, uint32_t addr) {
 }
 
 /**
- * Écriture 32 bits en mémoire
- * CORRECTION: Alignement forcé sur 4 octets
+ * Write 32 bits to memory
+ * CORRECTION: Forced 4-byte alignment
  */
 void mem_write32(PB010381_CPU *cpu, uint32_t addr, uint32_t val) {
-    // CRITIQUE: Alignement sur 4 octets pour les accès 32-bit
+    // CRITICAL: 4-byte alignment for 32-bit accesses
     if (addr & 3) {
         #if DEBUG_ALIGNMENT
-        printf("    [MEM_WARN] Écriture 32-bit non-alignée @ 0x%08X -> aligné à 0x%08X\n", 
+        printf("    [MEM_WARN] Unaligned 32-bit write @ 0x%08X -> aligned to 0x%08X\n", 
                addr, addr & ~3);
         #endif
         addr &= ~3;
@@ -272,7 +276,7 @@ void mem_write32(PB010381_CPU *cpu, uint32_t addr, uint32_t val) {
     mem_write16(cpu, addr + 2, val & 0xFFFF);
 }
 
-/* ================= UTILITAIRES ================= */
+/* ================= UTILITIES ================= */
 
 static inline uint16_t fetch16(PB010381_CPU *cpu) {
     uint16_t val = mem_read16(cpu, cpu->PC);
@@ -281,8 +285,8 @@ static inline uint16_t fetch16(PB010381_CPU *cpu) {
 }
 
 static inline uint32_t fetch32(PB010381_CPU *cpu) {
-    // CRITIQUE: Ne PAS forcer l'alignement pour les immédiat du code !
-    // Les immédiat 32-bit suivent un header 16-bit, donc ne sont jamais alignés sur 4.
+    // CRITICAL: Do NOT force alignment for code immediates!
+    // 32-bit immediates follow a 16-bit header, so never 4-byte aligned.
     uint32_t addr = cpu->PC;
     uint32_t val = (mem_read8(cpu, addr) << 24) |
                    (mem_read8(cpu, addr + 1) << 16) |
@@ -293,11 +297,11 @@ static inline uint32_t fetch32(PB010381_CPU *cpu) {
 }
 
 /**
- * CORRECTION: PUSH/POP 32-bit pour cohérence
- * Les registres sont 32-bit, donc PUSH/POP doivent l'être aussi
+ * CORRECTION: 32-bit PUSH/POP for consistency
+ * Registers are 32-bit, so PUSH/POP must be too
  */
 static inline void push32(PB010381_CPU *cpu, uint32_t val) {
-    cpu->R[15] -= 4;  // SP décrémente de 4 (alignement 32-bit)
+    cpu->R[15] -= 4;  // SP decrements by 4 (32-bit alignment)
     mem_write32(cpu, cpu->R[15], val);
     #if DEBUG_STACK
     printf("    [PUSH32] SP=0x%08X <= 0x%08X\n", cpu->R[15], val);
@@ -313,7 +317,7 @@ static inline uint32_t pop32(PB010381_CPU *cpu) {
     return val;
 }
 
-/* Garder push16/pop16 pour compatibilité si nécessaire */
+/* Keep push16/pop16 for compatibility if needed */
 static inline void push16(PB010381_CPU *cpu, uint16_t val) {
     cpu->R[15] -= 2;
     mem_write16(cpu, cpu->R[15], val);
@@ -332,10 +336,10 @@ static inline uint16_t pop16(PB010381_CPU *cpu) {
 }
 
 /**
- * CORRECTION: Calcul correct de l'overflow signé
+ * CORRECTION: Correct signed overflow calculation
  */
 static inline bool calc_overflow_add(uint32_t a, uint32_t b, uint32_t result) {
-    // Overflow si : (a et b même signe) ET (résultat signe différent)
+    // Overflow if: (a and b same sign) AND (result sign different)
     bool a_sign = (a >> 31) & 1;
     bool b_sign = (b >> 31) & 1;
     bool r_sign = (result >> 31) & 1;
@@ -343,7 +347,7 @@ static inline bool calc_overflow_add(uint32_t a, uint32_t b, uint32_t result) {
 }
 
 static inline bool calc_overflow_sub(uint32_t a, uint32_t b, uint32_t result) {
-    // Overflow si : (a et b signes différents) ET (résultat signe != a)
+    // Overflow if: (a and b different signs) AND (result sign != a)
     bool a_sign = (a >> 31) & 1;
     bool b_sign = (b >> 31) & 1;
     bool r_sign = (result >> 31) & 1;
@@ -355,21 +359,21 @@ static inline void update_zn(PB010381_CPU *cpu, uint32_t val) {
     cpu->Flags.N = (val >> 31) & 1;
 }
 
-/* ================= BOUCLE CPU ================= */
+/* ================= CPU LOOP ================= */
 
 void cpu_step(PB010381_CPU *cpu) {
     if (cpu->halted) return;
 
     // ============================================================
-    // DISPATCH DES INTERRUPTIONS
+    // INTERRUPT DISPATCH
     // ============================================================
 
-    // --- NMI (Non-Maskable Interrupt) — priorité maximale ---
+    // --- NMI (Non-Maskable Interrupt) — highest priority ---
     if (cpu->nmi_pending) {
         cpu->nmi_pending    = false;
-        cpu->waiting_vblank = false;   // Réveille un VSYNC en attente
+        cpu->waiting_vblank = false;   // Wake up waiting VSYNC
 
-        // Sauvegarder PC et flags sur la pile
+        // Save PC and flags to stack
         push32(cpu, cpu->PC);
         uint32_t flags_word = ((uint32_t)cpu->Flags.Z)          |
                               ((uint32_t)cpu->Flags.N     << 1)  |
@@ -377,22 +381,24 @@ void cpu_step(PB010381_CPU *cpu) {
                               ((uint32_t)cpu->Flags.V     << 3)  |
                               ((uint32_t)cpu->irq_enabled << 4);
         push32(cpu, flags_word);
-        cpu->irq_enabled = false;      // IRQ désactivées pendant le handler NMI
+        cpu->irq_enabled = false;      // IRQ disabled during NMI handler
 
         uint32_t vector = mem_read32(cpu, NMI_VECTOR_ADDR);
         if (vector != 0) {
-            printf("    [NMI] Dispatch -> 0x%08X (PC sauvegardé: 0x%08X)\n",
+			#if DEBUG_NMI
+            printf("    [NMI] Dispatch -> 0x%08X (PC saved: 0x%08X)\n",
                    vector, cpu->PC);
+			#endif
             cpu->PC = vector;
         }
         cpu->total_cycles++;
         return;
     }
 
-    // --- IRQ (masquable) ---
+    // --- IRQ (maskable) ---
     if (cpu->irq_pending && cpu->irq_enabled) {
         cpu->irq_pending  = false;
-        cpu->irq_enabled  = false;     // Désactiver les IRQ pendant le handler
+        cpu->irq_enabled  = false;     // Disable IRQs during handler
 
         push32(cpu, cpu->PC);
         uint32_t flags_word = ((uint32_t)cpu->Flags.Z)          |
@@ -404,19 +410,21 @@ void cpu_step(PB010381_CPU *cpu) {
 
         uint32_t vector = mem_read32(cpu, IRQ_VECTOR_ADDR);
         if (vector != 0) {
-            printf("    [IRQ] Dispatch -> 0x%08X (PC sauvegardé: 0x%08X)\n",
+			#if DEBUG_IRQ
+            printf("    [IRQ] Dispatch -> 0x%08X (PC saved: 0x%08X)\n",
                    vector, cpu->PC);
+			#endif
             cpu->PC = vector;
         }
         cpu->total_cycles++;
         return;
     }
 
-    // --- Si en attente de VBlank (VSYNC), suspendre l'exécution ---
+    // --- If waiting for VBlank (VSYNC), suspend execution ---
     if (cpu->waiting_vblank) return;
 
     // ============================================================
-    // EXÉCUTION NORMALE
+    // NORMAL EXECUTION
     // ============================================================
   
     uint32_t pc_before = cpu->PC;
@@ -432,9 +440,9 @@ void cpu_step(PB010381_CPU *cpu) {
     #endif
     
     switch (op) {
-        /* ===== CONTRÔLE ===== */
+        /* ===== CONTROL ===== */
         case 0x00:  // HALT
-            printf("    [HALT] Arrêt du CPU\n");
+            printf("    [HALT] CPU stopped\n");
             cpu->halted = true;
             break;
             
@@ -469,20 +477,20 @@ void cpu_step(PB010381_CPU *cpu) {
         case 0xF9:  // CLI — Clear Interrupt Enable
             cpu->irq_enabled = false;
             #if DEBUG_CPU_STEPS
-            printf("    [CLI] IRQ désactivées\n");
+            printf("    [CLI] IRQ disabled\n");
             #endif
             break;
 
         case 0xFA:  // SEI — Set Interrupt Enable
             cpu->irq_enabled = true;
             #if DEBUG_CPU_STEPS
-            printf("    [SEI] IRQ activées\n");
+            printf("    [SEI] IRQ enabled\n");
             #endif
             break;
 
-        /* ===== CHARGEMENT/SAUVEGARDE AVEC ADRESSES 32-BIT ===== */
+        /* ===== LOAD/STORE WITH 32-BIT ADDRESSES ===== */
         
-        /* Instructions 8-bit - NOUVELLES */
+        /* 8-bit instructions - NEW */
         case 0x62:  // LDRI8 Rd, imm32 - Load 8-bit from [imm32]
         {
             uint32_t addr = fetch32(cpu);
@@ -525,7 +533,7 @@ void cpu_step(PB010381_CPU *cpu) {
         }
         break;
         
-        /* Instructions 16-bit */
+        /* 16-bit instructions */
         case 0x01:  // LDRI Rd, imm32 - Load 16-bit from [imm32]
         {
             uint32_t addr = fetch32(cpu);
@@ -541,7 +549,7 @@ void cpu_step(PB010381_CPU *cpu) {
         }
         break;
         
-        /* Instructions 32-bit */
+        /* 32-bit instructions */
         case 0x03:  // LDR Rd, Rs - Load 32-bit from [Rs]
             cpu->R[rd] = mem_read32(cpu, cpu->R[rs]);
             update_zn(cpu, cpu->R[rd]);
@@ -551,7 +559,7 @@ void cpu_step(PB010381_CPU *cpu) {
             mem_write32(cpu, cpu->R[rd], cpu->R[rs]);
             break;
 
-        /* ===== TRANSFERT & IMMÉDIAT ===== */
+        /* ===== TRANSFER & IMMEDIATE ===== */
         case 0x05:  // MOV Rd, Rs
             cpu->R[rd] = cpu->R[rs];
             update_zn(cpu, cpu->R[rd]);
@@ -576,17 +584,17 @@ void cpu_step(PB010381_CPU *cpu) {
         case 0x61:  // LIH Rd, imm16 - Load High (bits 16-31)
         {
             uint32_t imm = fetch16(cpu);
-            // CORRECTION: Décalage de 16 bits au lieu de 8
+            // CORRECTION: Shift by 16 bits instead of 8
             cpu->R[rd] = (cpu->R[rd] & 0x0000FFFF) | (imm << 16); 
             update_zn(cpu, cpu->R[rd]);
         }
         break;
 
-        /* ===== ARITHMÉTIQUE ===== */
+        /* ===== ARITHMETIC ===== */
         case 0x07:  // ADD Rd, Rs
         {
             uint32_t result = cpu->R[rd] + cpu->R[rs];
-            cpu->Flags.C = result < cpu->R[rd];  // Carry sur dépassement non-signé
+            cpu->Flags.C = result < cpu->R[rd];  // Carry on unsigned overflow
             cpu->Flags.V = calc_overflow_add(cpu->R[rd], cpu->R[rs], result);
             cpu->R[rd] = result;
             update_zn(cpu, cpu->R[rd]);
@@ -606,7 +614,7 @@ void cpu_step(PB010381_CPU *cpu) {
         case 0x09:  // MUL Rd, Rs
         {
             uint64_t result = (uint64_t)cpu->R[rd] * (uint64_t)cpu->R[rs];
-            cpu->Flags.C = (result >> 32) != 0;  // Carry si débordement 32-bit
+            cpu->Flags.C = (result >> 32) != 0;  // Carry on 32-bit overflow
             cpu->R[rd] = (uint32_t)result;
             update_zn(cpu, cpu->R[rd]);
         }
@@ -615,8 +623,8 @@ void cpu_step(PB010381_CPU *cpu) {
         case 0x0A:  // DIV Rd, Rs
             if (cpu->R[rs] == 0) {
                 cpu->div_error = true;
-                cpu->Flags.V = true;  // Signal d'erreur
-                printf("    [DIV_ERROR] Division par zéro\n");
+                cpu->Flags.V = true;  // Error signal
+                printf("    [DIV_ERROR] Division by zero\n");
             } else {
                 cpu->R[rd] /= cpu->R[rs];
                 cpu->div_error = false;
@@ -629,7 +637,7 @@ void cpu_step(PB010381_CPU *cpu) {
             if (cpu->R[rs] == 0) {
                 cpu->div_error = true;
                 cpu->Flags.V = true;
-                printf("    [MOD_ERROR] Modulo par zéro\n");
+                printf("    [MOD_ERROR] Modulo by zero\n");
             } else {
                 cpu->R[rd] %= cpu->R[rs];
                 cpu->div_error = false;
@@ -689,7 +697,7 @@ void cpu_step(PB010381_CPU *cpu) {
         }
         break;
 
-        /* ===== LOGIQUE ===== */
+        /* ===== LOGIC ===== */
         case 0x1B:  // AND Rd, Rs
             cpu->R[rd] &= cpu->R[rs];
             update_zn(cpu, cpu->R[rd]);
@@ -720,10 +728,10 @@ void cpu_step(PB010381_CPU *cpu) {
             
         case 0x1F:  // SHL Rd, Rs (shift left)
         {
-            // CORRECTION: Limiter le shift à 31 bits max (registres 32-bit)
+            // CORRECTION: Limit shift to max 31 bits (32-bit registers)
             uint32_t shift = cpu->R[rs] & 0x1F;  // 0-31 bits
             if (shift > 0) {
-                // Le dernier bit sorti est le bit qui passe dans le carry
+                // The last bit out is the bit that goes into carry
                 cpu->Flags.C = ((cpu->R[rd] >> (32 - shift)) & 1) != 0;
                 cpu->R[rd] <<= shift;
             } else {
@@ -734,12 +742,12 @@ void cpu_step(PB010381_CPU *cpu) {
         }
         break;
             
-        case 0x21:  // SHR Rd, Rs (shift right logique)
+        case 0x21:  // SHR Rd, Rs (logical shift right)
         {
-            // CORRECTION: Limiter le shift à 31 bits max (registres 32-bit)
+            // CORRECTION: Limit shift to max 31 bits (32-bit registers)
             uint32_t shift = cpu->R[rs] & 0x1F;  // 0-31 bits
             if (shift > 0) {
-                // Le dernier bit sorti est le LSB avant le shift
+                // The last bit out is the LSB before shift
                 cpu->Flags.C = ((cpu->R[rd] >> (shift - 1)) & 1) != 0;
                 cpu->R[rd] >>= shift;
             } else {
@@ -750,7 +758,7 @@ void cpu_step(PB010381_CPU *cpu) {
         }
         break;
 
-        /* ===== SAUTS (ADRESSES 32-BIT) ===== */
+        /* ===== JUMPS (32-BIT ADDRESSES) ===== */
         case 0x10:  // JMP imm32
         {
             uint32_t addr = fetch32(cpu);
@@ -766,7 +774,7 @@ void cpu_step(PB010381_CPU *cpu) {
             uint32_t addr = fetch32(cpu);
             if (cpu->Flags.Z) {
                 #if DEBUG_JUMPS
-                printf("    [JZ] PRIS: PC: 0x%08X -> 0x%08X\n", pc_before, addr);
+                printf("    [JZ] TAKEN: PC: 0x%08X -> 0x%08X\n", pc_before, addr);
                 #endif
                 cpu->PC = addr;
             }
@@ -778,7 +786,7 @@ void cpu_step(PB010381_CPU *cpu) {
             uint32_t addr = fetch32(cpu);
             if (!cpu->Flags.Z) {
                 #if DEBUG_JUMPS
-                printf("    [JNZ] PRIS: PC: 0x%08X -> 0x%08X\n", pc_before, addr);
+                printf("    [JNZ] TAKEN: PC: 0x%08X -> 0x%08X\n", pc_before, addr);
                 #endif
                 cpu->PC = addr;
             }
@@ -788,7 +796,7 @@ void cpu_step(PB010381_CPU *cpu) {
         case 0x17:  // CALL imm32
         {
             uint32_t addr = fetch32(cpu);
-            push32(cpu, cpu->PC);  // Sauvegarder l'adresse de retour
+            push32(cpu, cpu->PC);  // Save return address
             #if DEBUG_JUMPS
             printf("    [CALL] PC: 0x%08X -> 0x%08X (RET @ 0x%08X)\n", 
                    pc_before, addr, cpu->PC);
@@ -807,7 +815,7 @@ void cpu_step(PB010381_CPU *cpu) {
         }
         break;
 
-        /* ===== PILE ===== */
+        /* ===== STACK ===== */
         case 0x19:  // PUSH Rs
             push32(cpu, cpu->R[rs]);
             break;
@@ -818,14 +826,14 @@ void cpu_step(PB010381_CPU *cpu) {
             break;
 
         /* ===== GPU ===== */
-        case 0x51:  // VSYNC — Attendre le prochain VBlank
+        case 0x51:  // VSYNC — Wait for next VBlank
             #if DEBUG_GPU_OPS
-            printf("    [VSYNC] Suspension jusqu'au prochain VBlank\n");
+            printf("    [VSYNC] Suspended until next VBlank\n");
             #endif
-            cpu->waiting_vblank = true;   // CPU suspendu jusqu'à NMI VBlank
+            cpu->waiting_vblank = true;   // CPU suspended until NMI VBlank
             break;
 
-        /* ===== MÉMOIRE ===== */
+        /* ===== MEMORY ===== */
         case 0x40:  // MCPY - Memory Copy (R1=src, R2=dst, R3=len)
         {
             uint32_t src = cpu->R[1];
@@ -836,7 +844,7 @@ void cpu_step(PB010381_CPU *cpu) {
             printf("    [MCPY] src=0x%08X dst=0x%08X len=%u\n", src, dst, len);
             #endif
             
-            // CORRECTION: Utiliser mem_read8/mem_write8 pour supporter VRAM
+            // CORRECTION: Use mem_read8/mem_write8 to support VRAM
             for (uint32_t i = 0; i < len; i++) {
                 uint8_t byte = mem_read8(cpu, src + i);
                 mem_write8(cpu, dst + i, byte);
@@ -854,16 +862,16 @@ void cpu_step(PB010381_CPU *cpu) {
             printf("    [MSET] val=0x%02X addr=0x%08X len=%u\n", val, addr, len);
             #endif
             
-            // CORRECTION: Utiliser mem_write8 pour supporter VRAM
+            // CORRECTION: Use mem_write8 to support VRAM
             for (uint32_t i = 0; i < len; i++) {
                 mem_write8(cpu, addr + i, val);
             }
         }
         break;
 
-        /* ===== INSTRUCTION INCONNUE ===== */
+        /* ===== UNKNOWN INSTRUCTION ===== */
         default:
-            printf("    [CPU_ERROR] Opcode inconnu: 0x%02X @ PC=0x%08X\n", op, pc_before);
+            printf("    [CPU_ERROR] Unknown opcode: 0x%02X @ PC=0x%08X\n", op, pc_before);
             cpu->halted = true;
             break;
     }
