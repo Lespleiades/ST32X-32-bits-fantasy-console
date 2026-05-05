@@ -400,8 +400,6 @@ It covers:
 This document outlines the priority tasks for the ST32X project based on the current state of the APU, CPU, GPU, and Assembler sources.
 
 ### 🔴 High Priority: System & Core
-- [ ] **Interrupt Management:** - Add IRQ/NMI support to the CPU logic.
-- [ ] Link the GPU VBlank signal to an interrupt trigger for timing synchronization.
 - [ ] **Timing Accuracy:** Update the instruction cycle counting (currently defaults to 1 cycle for all opcodes).
 
 ### 🟡 Medium Priority: Graphics & Audio
