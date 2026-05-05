@@ -82,7 +82,7 @@ int main(int argc, char* argv[]) {
     int window_height = SCREEN_HEIGHT * WINDOW_SCALE;
     
     SDL_Window* window = SDL_CreateWindow(
-        "ST32X",
+        "ST16X Fantasy Console - v5.0 (512KB RAM/VRAM)",
         SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
         window_width, window_height, 
         SDL_WINDOW_SHOWN
@@ -196,6 +196,28 @@ int main(int argc, char* argv[]) {
     printf("      ROM:        0x%08X - 0x%08X (~%d MB)\n\n", 
            ROM_START, ROM_END, ROM_SIZE / (1024*1024));
 
+	// === INSTALLATION DU VECTEUR NMI ===
+	// Chercher l'adresse de nmi_handler dans la ROM chargée.
+	// nmi_handler est le label qui suit setup_apu dans input.asm.
+	// D'après les logs d'assemblage (passe 1), son adresse apparaît
+	// dans "Label 'nmi_handler' @ 0xXXXXXXXX".
+	// On l'écrit directement en RAM aux adresses 0x10 et 0x12.
+
+	uint32_t nmi_addr = 0x0020049E; // remplacer par l'adresse réelle, visible dans les logs passe 1
+	// Écrire le vecteur 32-bit en RAM (big-endian, 2 x 16-bit)
+	cpu->memory[0x10] = (nmi_addr >> 24) & 0xFF;
+	cpu->memory[0x11] = (nmi_addr >> 16) & 0xFF;
+	cpu->memory[0x12] = (nmi_addr >>  8) & 0xFF;
+	cpu->memory[0x13] = (nmi_addr >>  0) & 0xFF;
+	printf("[NMI] Vecteur installé @ 0x%08X\n", nmi_addr);
+	printf("[NMI] Contenu du handler (32 premiers octets) :\n");
+	uint32_t base = nmi_addr - RAM_START;   // conversion adresse → offset mémoire
+	for (int i = 0; i < 32; i++) {
+		printf("%02X ", cpu->memory[base + i]);
+		if ((i + 1) % 16 == 0) printf("\n");
+	}
+	printf("\n");
+
     // ==========================================
     // BOUCLE PRINCIPALE
     // ==========================================
@@ -243,8 +265,9 @@ int main(int argc, char* argv[]) {
 
         // Exécution CPU (environ 1000 cycles par frame pour ~10 itérations de main_loop)
         // Cela permet un scrolling fluide sans que scroll_x ne devienne trop grand
-        for (int i = 0; i < 1000 && !cpu->halted; i++) {
-            cpu_step(cpu);
+		for (int i = 0; i < 1000 && !cpu->halted; i++) {
+			if (cpu->waiting_vblank) break;   // Ne pas exécuter si en attente VBlank
+			cpu_step(cpu);
             
             // Détection de boucle infinie
             if (cpu->PC == last_pc) {
@@ -268,6 +291,21 @@ int main(int argc, char* argv[]) {
         
         // Rendu de la frame
         gpu_render_frame(gpu);
+
+		// === DÉCLENCHEMENT NMI VBLANK ===
+		// Seulement si le CPU attend réellement un VBlank (VSYNC exécuté)
+		// Sans ce garde, la NMI s'exécute pendant l'init et corrompt les registres
+		if (cpu->waiting_vblank) {
+			// Réinstaller le vecteur NMI à chaque frame (init_system le wipe avec MSET)
+			uint32_t nmi_addr = 0x00200486; // Adresse de nmi_handler (vérifier dans les logs passe 1)
+			cpu->memory[0x10] = (nmi_addr >> 24) & 0xFF;
+			cpu->memory[0x11] = (nmi_addr >> 16) & 0xFF;
+			cpu->memory[0x12] = (nmi_addr >>  8) & 0xFF;
+			cpu->memory[0x13] = (nmi_addr >>  0) & 0xFF;
+
+			cpu->nmi_pending    = true;
+			cpu->waiting_vblank = false;
+		}
 
         // Vérifier si le mode vidéo a changé et adapter la fenêtre
         if (gpu->video_mode != last_video_mode) {
