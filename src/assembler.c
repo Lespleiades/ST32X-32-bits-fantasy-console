@@ -29,7 +29,10 @@ Opcode ISA[] = {
     {"NOP",    0xFF, 0}, 
     {"CLC",    0xFC, 0}, 
     {"SEC",    0xFB, 0},
-    
+	{"RTI",    0xF8, 0},   // Return from Interrupt
+	{"CLI",    0xF9, 0},   // Clear Interrupt Enable (désactiver IRQ)
+	{"SEI",    0xFA, 0},   // Set   Interrupt Enable (activer IRQ)  
+	
     // Obsolète (bank switching supprimé)
     {"SETBNK", 0x45, 0},
     
@@ -162,7 +165,7 @@ void assemble(const char* infile, const char* outfile) {
     uint32_t current_pc = 0x00200000;  // Adresse de départ par défaut (ROM)
     
     printf("========================================\n");
-    printf("ASSEMBLEUR ST32X - MODE 32 BITS\n");
+    printf("ASSEMBLEUR ST16X - MODE 32 BITS\n");
     printf("========================================\n\n");
     
     /* ===== PASSE 1 : COLLECTE DES LABELS ===== */
