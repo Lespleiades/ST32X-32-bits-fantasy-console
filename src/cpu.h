@@ -37,6 +37,17 @@
 #define CONTROLLER_MMIO_START  0x00100100
 #define CONTROLLER_MMIO_END    0x001001FF
 
+// Interrupt Controller MMIO (0x00100000 - 0x0010000F)
+// Occupe l'espace IO inutilisé avant les contrôleurs
+#define INT_MMIO_START  0x00100000
+#define INT_MMIO_END    0x0010000F
+// 0x00100000 : INT_CTRL   — bit0=IRQ enable, bit1=NMI enable
+// 0x00100002 : INT_STATUS — bit0=IRQ actif, bit1=NMI actif (écrire 0 pour effacer)
+
+// Vecteurs d'interruption (adresses fixes en RAM)
+#define NMI_VECTOR_ADDR  0x00000010  // 4 bytes : adresse 32-bit du handler NMI
+#define IRQ_VECTOR_ADDR  0x00000014  // 4 bytes : adresse 32-bit du handler IRQ
+
 // GPU MMIO
 #define GPU_MMIO_START  0x00100200
 #define GPU_MMIO_END   	0x001057FF
@@ -67,6 +78,13 @@ typedef struct {
     
     bool halted;
     bool div_error;   // Flag d'erreur division par zéro
+	
+	// === SYSTÈME D'INTERRUPTIONS ===
+	bool irq_enabled;     // Flag I : IRQ masquables activées (SEI/CLI)
+	bool irq_pending;     // Une IRQ attend d'être servie
+	bool nmi_pending;     // Une NMI (VBlank) attend d'être servie
+	bool waiting_vblank;  // VSYNC : CPU suspendu jusqu'au prochain VBlank	
+	
     uint64_t total_cycles;
     
     uint8_t memory[MEM_SIZE];
