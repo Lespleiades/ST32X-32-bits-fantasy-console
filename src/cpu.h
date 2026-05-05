@@ -38,19 +38,19 @@
 #define CONTROLLER_MMIO_END    0x001001FF
 
 // Interrupt Controller MMIO (0x00100000 - 0x0010000F)
-// Occupe l'espace IO inutilisé avant les contrôleurs
+// Occupies unused IO space before controllers
 #define INT_MMIO_START  0x00100000
 #define INT_MMIO_END    0x0010000F
 // 0x00100000 : INT_CTRL   — bit0=IRQ enable, bit1=NMI enable
-// 0x00100002 : INT_STATUS — bit0=IRQ actif, bit1=NMI actif (écrire 0 pour effacer)
+// 0x00100002 : INT_STATUS — bit0=IRQ active, bit1=NMI active (write 0 to clear)
 
-// Vecteurs d'interruption (adresses fixes en RAM)
-#define NMI_VECTOR_ADDR  0x00000010  // 4 bytes : adresse 32-bit du handler NMI
-#define IRQ_VECTOR_ADDR  0x00000014  // 4 bytes : adresse 32-bit du handler IRQ
+// Interrupt vectors (fixed addresses in RAM)
+#define NMI_VECTOR_ADDR  0x00000010  // 4 bytes: 32-bit NMI handler address
+#define IRQ_VECTOR_ADDR  0x00000014  // 4 bytes: 32-bit IRQ handler address
 
 // GPU MMIO
 #define GPU_MMIO_START  0x00100200
-#define GPU_MMIO_END   	0x001057FF
+#define GPU_MMIO_END  	0x001057FF
 
 // APU MMIO
 #define APU_MMIO_START  0x00100800
@@ -69,7 +69,7 @@
 ========================================================= */
 
 typedef struct {
-    uint32_t R[16];   // Registres R0-R15
+    uint32_t R[16];   // Registers R0-R15
     uint32_t PC;      // Program Counter
     
     struct {
@@ -77,19 +77,19 @@ typedef struct {
     } Flags;
     
     bool halted;
-    bool div_error;   // Flag d'erreur division par zéro
+    bool div_error;   // Division by zero error flag
 	
-	// === SYSTÈME D'INTERRUPTIONS ===
-	bool irq_enabled;     // Flag I : IRQ masquables activées (SEI/CLI)
-	bool irq_pending;     // Une IRQ attend d'être servie
-	bool nmi_pending;     // Une NMI (VBlank) attend d'être servie
-	bool waiting_vblank;  // VSYNC : CPU suspendu jusqu'au prochain VBlank	
+	// === INTERRUPT SYSTEM ===
+	bool irq_enabled;     // Flag I: Maskable IRQs enabled (SEI/CLI)
+	bool irq_pending;     // An IRQ waiting to be serviced
+	bool nmi_pending;     // An NMI (VBlank) waiting to be serviced
+	bool waiting_vblank;  // VSYNC: CPU suspended until next VBlank
 	
     uint64_t total_cycles;
     
     uint8_t memory[MEM_SIZE];
     
-    // Périphériques
+    // Peripherals
     PB010381_GPU *gpu;
     PB010381_APU *apu;
     PB010381_Controllers *controllers;
