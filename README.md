@@ -1,6 +1,6 @@
 <div align="center">
 
-![image](assets/logo-simple-extra-large.png)
+![image](assets/logo-gh.png)
 
 **A 32-bit Fantasy Console built in C with SDL2**
 
