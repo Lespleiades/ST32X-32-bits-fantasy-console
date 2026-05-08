@@ -6,65 +6,6 @@
 ; - GNU GENERAL PUBLIC LICENSE V3 -
 ;=============================================================================
 
-;=============================================================================
-; ST32X Fantasy Console - Horizontal Parallax Scrolling Demo
-; 32-bit Linear Addressing Architecture
-;
-; Screen layout:
-;   y=  0-15 	: HUD  	- violet
-;   y=16-63 	: BG2	- yellow/grey 	checkerboard (+1 px/frame, slow)
-;   y=64-127	: BG1	- green/orange 	checkerboard    (+2 px/frame, mid)
-;   y=128-223	: BG0	- red/violet 	checkerboard  (+3 px/frame, fast)
-;
-; Sprites:
-;   Sprite 0 (brown, tile 1799) @ (152,100) - D-PAD controlled
-;   Sprite 1 (violet,    tile 1028) @ (200,90) - static collision target
-;
-; RAM:
-;   0x00000100 : sound_flag
-;   0x00000200 : bg0_scroll_x
-;   0x00000202 : bg1_scroll_x
-;   0x00000204 : bg2_scroll_x
-;
-; Palette base (GPU_MMIO_START + offset 0x300 = 0x00100200+0x300):
-;   0x00100500 = palette[0][0]
-;
-; fill_checkerband convention:
-;   R1 = absolute VRAM start address for the band
-;   R2 = tile_A byte (even rows: A,B,A,B...)
-;   R3 = tile_B byte (odd rows:  B,A,B,A...)
-;   R4 = number of rows to fill
-;   Uses R5-R10 internally
-;   STR8 Rs, Rd -> mem8[Rd] = Rs
-;
-; HOW THE NMI SYSTEM WORKS:
-;
-;   1. main writes the address of nmi_handler to the NMI vector (RAM 0x00000010)
-;   2. main enters an infinite loop: VSYNC -> wait for VBlank -> JMP main_loop
-;   3. At the end of each frame, main.c triggers the NMI (cpu->nmi_pending = true)
-;   4. The CPU:
-;        - Saves PC + flags to stack
-;        - Jumps to nmi_handler
-;   5. nmi_handler does all the work (scroll, sprite, sound, collision)
-;   6. RTI restores PC + flags -> CPU resumes exactly where it was
-;        (either on VSYNC or JMP, doesn't matter)
-;
-;   ADVANTAGE vs old polling:
-;   - Game code (update) is GUARANTEED to execute exactly 1 time per frame,
-;     even if CPU is slow or waiting for VBlank.
-;   - No need to manually check if VBlank has occurred.
-;
-; MEMORY MAP FOR VECTORS (RAM):
-;   0x00000010 : NMI vector (32-bit) — NMI handler address
-;   0x00000014 : IRQ vector (32-bit) — not used here (leave as 0)
-;
-; UTILITY RAM:
-;   0x00000100 : sound_flag   (0=CH0 stopped, 1=CH0 active)
-;   0x00000200 : bg0_scroll_x
-;   0x00000202 : bg1_scroll_x
-;   0x00000204 : bg2_scroll_x
-;=============================================================================
-
 .org 0x00200000
 
 ;=============================================================================
@@ -229,6 +170,14 @@ init_system:
     STRI 0x00000200, R0       ; bg0_scroll_x = 0
     STRI 0x00000202, R0       ; bg1_scroll_x = 0
     STRI 0x00000204, R0       ; bg2_scroll_x = 0
+
+    ; --- rotation / scale ---
+    STRI 0x00000206, R0       ; player_angle = 0°
+    LI   R0, 256
+    STRI 0x00000208, R0       ; player_scale = 256 (100%)
+    LI   R0, 0
+    STRI 0x0000020A, R0       ; prev_buttons = 0
+
     LI R0, 0
     LI R1, 0
     LI R2, 0
@@ -317,7 +266,7 @@ create_tiles:
     LI R3, 256
     MSET
     LI R1, 7
-    LI R2, 0x06C0
+    LI R2, 0x0700
     LIH R2, 0x000F
     LI R3, 256
     MSET
@@ -479,40 +428,45 @@ setup_hud:
 ; SETUP SPRITES
 ;
 ; Sprite 0 : Player (brown, tile 1799) @ (152, 100), priority 2
-; Sprite 1 : Target (violet,    tile 1028) @ (200,  90), priority 2
+; Sprite 1 : Target (violet, tile 1028) @ (200,  90), priority 2
 ;
 ; Sprite N base: 0x00104500 + N*16
-; Offsets: +0=x +2=y +4=tile +6=pal|pri +8=flags +A=scale_x +C=scale_y
+; Offsets: +00=x  +02=y  +04=tile  +06=pal|pri
+;          +08=flags  +0A=scale_x  +0C=scale_y  +0E=angle
 ;=============================================================================
 
 setup_sprites:
+    ; --- Sprite 0 : joueur ---
     LI R0, 152
-    STRI 0x00104500, R0
+    STRI 0x00104500, R0       ; x = 152
     LI R0, 100
-    STRI 0x00104502, R0
+    STRI 0x00104502, R0       ; y = 100
     LI R0, 1799
-    STRI 0x00104504, R0
+    STRI 0x00104504, R0       ; tile_index = 1799 (brown)
     LI R0, 0x0002
-    STRI 0x00104506, R0
+    STRI 0x00104506, R0       ; palette=0, priorité=2
     LI R0, 0x0004
-    STRI 0x00104508, R0
+    STRI 0x00104508, R0       ; flags = enabled (bit 2)
     LI R0, 256
-    STRI 0x0010450A, R0
-    STRI 0x0010450C, R0
+    STRI 0x0010450A, R0       ; scale_x = 256 (100%)
+    STRI 0x0010450C, R0       ; scale_y = 256 (100%)
+    LI R0, 0
+    STRI 0x0010450E, R0       ; angle = 0°
 
+    ; --- Sprite 1 : cible statique ---
     LI R0, 200
-    STRI 0x00104510, R0
+    STRI 0x00104510, R0       ; x = 200
     LI R0, 90
-    STRI 0x00104512, R0
+    STRI 0x00104512, R0       ; y = 90
     LI R0, 1028
-    STRI 0x00104514, R0
+    STRI 0x00104514, R0       ; tile_index = 1028 (violet)
     LI R0, 0x0002
-    STRI 0x00104516, R0
+    STRI 0x00104516, R0       ; palette=0, priorité=2
     LI R0, 0x0004
-    STRI 0x00104518, R0
+    STRI 0x00104518, R0       ; flags = enabled
     LI R0, 256
-    STRI 0x0010451A, R0
-    STRI 0x0010451C, R0
+    STRI 0x0010451A, R0       ; scale_x = 256
+    STRI 0x0010451C, R0       ; scale_y = 256
     RET
 
 ;=============================================================================
@@ -677,20 +631,117 @@ dpad_write:
     RET
 
 ;=============================================================================
-; CHECK_BUTTONS — Sound on button press (CH1 one-shot)
+; CHECK_BUTTONS — Rotation / Scale / Sound on button press
+;
+; Controller 0 MMIO:
+;   0x00100110: buttons (A=bit0, B=bit1, X=bit2, Y=bit3)
+;
+; RAM:
+;   0x00000206: player_angle  (uint16, 0-355, 5° steps)
+;   0x00000208: player_scale  (uint16, 64-512, 16 steps)
+;   0x0000020A: prev_buttons  (uint16, previous frame state)
+;
+; Sprite 0 MMIO:
+;   0x0010450E: angle
+;   0x0010450A: scale_x
+;   0x0010450C: scale_y
+;
+; Used registers: R1, R4, R5, R6, R8, R9, R10
 ;=============================================================================
 
 check_buttons:
-    LDRI R1, 0x00100110
+    LDRI R1, 0x00100110      ; current buttons for controller 0
     LI   R4, 0x00FF
-    AND  R1, R4
-    LI   R6, 0
-    CMP  R1, R6
-    JZ   btn_none
-    LI R0, 0x0001
-    STRI 0x00100930, R0
+    AND  R1, R4               ; mask: keep only the 8 buttons
 
-btn_none:
+    ; --- Sound on new button press (just pressed) ---
+    ; newly_pressed = current & (~prev)
+    LDRI R9, 0x0000020A      ; prev_buttons (previous frame)
+    MOV  R10, R9
+    NOT  R10                  ; R10 = ~prev_buttons
+    AND  R10, R1               ; R10 = newly_pressed (bits set to 1 = new press)
+    LI   R6, 0
+    CMP  R10, R6
+    JZ   cb_btn_a            ; no new button -> no sound
+    LI   R0, 0x0001
+    STRI 0x00100930, R0      ; trigger CH1 -> sound on press
+
+cb_btn_a:
+    ; === BUTTON A (bit 0): Left rotation -5° ===
+    LI   R4, 0x0001
+    MOV  R5, R1
+    AND  R5, R4               ; R5 = buttons & BTN_A
+    LI   R6, 0
+    CMP  R5, R6
+    JZ   cb_btn_b            ; not pressed -> next
+
+    LDRI R8, 0x00000206      ; current angle (0, 5, 10, ..., 355)
+    LI   R4, 0
+    CMP  R8, R4               ; angle == 0 ?
+    JNZ  cb_a_sub
+    LI   R8, 360              ; yes -> set to 360 so 360-5 = 355 (wrap)
+cb_a_sub:
+    SUBI R8, 5                ; angle -= 5
+    STRI 0x00000206, R8      ; save angle in RAM
+    STRI 0x0010450E, R8      ; -> sprite 0 angle register (MMIO +0x0E)
+
+cb_btn_b:
+    ; === BUTTON B (bit 1): Right rotation +5° ===
+    LI   R4, 0x0002
+    MOV  R5, R1
+    AND  R5, R4               ; R5 = buttons & BTN_B
+    LI   R6, 0
+    CMP  R5, R6
+    JZ   cb_btn_y            ; not pressed -> next
+
+    LDRI R8, 0x00000206      ; current angle
+    ADDI R8, 5                ; angle += 5
+    LI   R4, 360
+    CMP  R8, R4               ; angle == 360 ?
+    JNZ  cb_b_done
+    LI   R8, 0                ; yes -> wrap 360 -> 0
+cb_b_done:
+    STRI 0x00000206, R8      ; save angle in RAM
+    STRI 0x0010450E, R8      ; -> sprite 0 angle register
+
+cb_btn_y:
+    ; === BUTTON Y (bit 3): Zoom in +16 (max 512 = 200%) ===
+    LI   R4, 0x0008
+    MOV  R5, R1
+    AND  R5, R4               ; R5 = buttons & BTN_Y
+    LI   R6, 0
+    CMP  R5, R6
+    JZ   cb_btn_x            ; not pressed -> next
+
+    LDRI R8, 0x00000208      ; current scale
+    LI   R4, 512
+    CMP  R8, R4               ; scale == 512 (maximum) ?
+    JZ   cb_btn_x            ; already at maximum -> skip
+    ADDI R8, 16               ; scale += 16
+    STRI 0x00000208, R8      ; save scale in RAM
+    STRI 0x0010450A, R8      ; -> sprite 0 scale_x
+    STRI 0x0010450C, R8      ; -> sprite 0 scale_y
+
+cb_btn_x:
+    ; === BUTTON X (bit 2): Zoom out -16 (min 64 = 25%) ===
+    LI   R4, 0x0004
+    MOV  R5, R1
+    AND  R5, R4               ; R5 = buttons & BTN_X
+    LI   R6, 0
+    CMP  R5, R6
+    JZ   cb_done             ; not pressed -> end
+
+    LDRI R8, 0x00000208      ; current scale
+    LI   R4, 64
+    CMP  R8, R4               ; scale == 64 (minimum) ?
+    JZ   cb_done             ; already at minimum -> skip
+    SUBI R8, 16               ; scale -= 16
+    STRI 0x00000208, R8      ; save scale in RAM
+    STRI 0x0010450A, R8      ; -> sprite 0 scale_x
+    STRI 0x0010450C, R8      ; -> sprite 0 scale_y
+
+cb_done:
+    STRI 0x0000020A, R1      ; update prev_buttons
     RET
 
 ;=============================================================================
