@@ -67,72 +67,72 @@ void gpu_init(PB010381_GPU *gpu) {
 
 uint16_t gpu_read16(PB010381_GPU *gpu, uint32_t addr) {
     uint32_t off = addr - GPU_MMIO_START;
-    
-    // PALETTE RAM (0x100 - 0x4FF)
+ 
+    // PALETTE RAM (0x300 - 0x4FF)
     if (off >= 0x300 && off < 0x300 + (MAX_PALETTES * PALETTE_SIZE * 2)) {
         int palette_offset = (off - 0x300) / 2;
-        int palette_idx = palette_offset / PALETTE_SIZE;
-        int color_idx = palette_offset % PALETTE_SIZE;
+        int palette_idx    = palette_offset / PALETTE_SIZE;
+        int color_idx      = palette_offset % PALETTE_SIZE;
         return gpu->palette[palette_idx][color_idx];
     }
-    
-    // SPRITE TABLE (0x2000 - 0x2FFF)
+ 
+    // SPRITE TABLE — stride 20 octets (GPU_Sprite = 20 bytes)
 	if (off >= 0x4300 && off < 0x4300 + (MAX_SPRITES * 16)) {
 		int sprite_idx = (off - 0x4300) / 16;
 		int sprite_off = (off - 0x4300) % 16;
-        GPU_Sprite *spr = &gpu->sprites[sprite_idx];
-        
-        switch (sprite_off) {
-            case 0:  return spr->x;
-            case 2:  return spr->y;
-            case 4:  return spr->tile_index;
-            case 6:  return (spr->palette << 8) | spr->priority;
-            case 8:  return spr->flags;
-            case 10: return spr->scale_x;
-            case 12: return spr->scale_y;
-            case 14: return (spr->hitbox_w << 8) | spr->hitbox_h;
-            default: return 0;
-        }
-    }
-    
+		GPU_Sprite *spr = &gpu->sprites[sprite_idx];
+
+		switch (sprite_off) {
+			case 0:  return spr->x;
+			case 2:  return spr->y;
+			case 4:  return spr->tile_index;
+			case 6:  return (spr->palette << 8) | spr->priority;
+			case 8:  return spr->flags;
+			case 10: return spr->scale_x;
+			case 12: return spr->scale_y;
+			case 14: return spr->angle;      /* FIX: était hitbox */
+			default: return 0;
+		}
+	}
+ 
     // STANDARD REGISTERS
     switch (off) {
         case 0x00: return gpu->CTRL;
         case 0x02: return gpu->STATUS;
-        
+ 
         // BG0
         case 0x10: return gpu->BG_SCROLL_X[0];
         case 0x12: return gpu->BG_SCROLL_Y[0];
         case 0x14: return gpu->BG_TILEMAP_BASE[0];
         case 0x16: return gpu->BG_TILESET_BASE[0];
         case 0x18: return gpu->BG_CTRL[0];
-        
+ 
         // BG1
         case 0x20: return gpu->BG_SCROLL_X[1];
         case 0x22: return gpu->BG_SCROLL_Y[1];
         case 0x24: return gpu->BG_TILEMAP_BASE[1];
         case 0x26: return gpu->BG_TILESET_BASE[1];
         case 0x28: return gpu->BG_CTRL[1];
-        
+ 
         // BG2
         case 0x30: return gpu->BG_SCROLL_X[2];
         case 0x32: return gpu->BG_SCROLL_Y[2];
         case 0x34: return gpu->BG_TILEMAP_BASE[2];
         case 0x36: return gpu->BG_TILESET_BASE[2];
         case 0x38: return gpu->BG_CTRL[2];
-        
-        // FG (Foreground)
+ 
+        // FG
         case 0x40: return gpu->FG_SCROLL_X;
         case 0x42: return gpu->FG_SCROLL_Y;
         case 0x44: return gpu->FG_TILEMAP_BASE;
         case 0x46: return gpu->FG_TILESET_BASE;
         case 0x48: return gpu->FG_CTRL;
-        
+ 
         // HUD
         case 0x50: return gpu->HUD_TILEMAP_BASE;
         case 0x52: return gpu->HUD_TILESET_BASE;
         case 0x54: return gpu->HUD_CTRL;
-        
+ 
         // DMA
         case 0x500: return (gpu->dma_src & 0xFFFF);
         case 0x502: return (gpu->dma_src >> 16);
@@ -140,16 +140,16 @@ uint16_t gpu_read16(PB010381_GPU *gpu, uint32_t addr) {
         case 0x506: return (gpu->dma_dst >> 16);
         case 0x508: return gpu->dma_len;
         case 0x50A: return gpu->dma_ctrl;
-        
+ 
         // COLLISION
         case 0x60: return gpu->COLLISION_CTRL;
-		case 0x62: return gpu->COLLISION_STATUS;
-        
+        case 0x62: return gpu->COLLISION_STATUS;
+ 
         // RAYCASTING
         case 0x700: return gpu->RAYCAST_CTRL;
         case 0x702: return gpu->RAYCAST_FOV;
         case 0x704: return gpu->RAYCAST_HEIGHT;
-        
+ 
         default: return 0;
     }
 }
@@ -226,97 +226,91 @@ void dma_exec(PB010381_GPU *gpu, PB010381_CPU *cpu) {
 
 void gpu_write16(PB010381_GPU *gpu, uint32_t addr, uint16_t value) {
     uint32_t off = addr - GPU_MMIO_START;
-    
+ 
     // PALETTE RAM
-	if (off >= 0x300 && off < 0x300 + (MAX_PALETTES * PALETTE_SIZE * 2)) {
-		int palette_offset = (off - 0x300) / 2;
-        int palette_idx = palette_offset / PALETTE_SIZE;
-        int color_idx = palette_offset % PALETTE_SIZE;
+    if (off >= 0x300 && off < 0x300 + (MAX_PALETTES * PALETTE_SIZE * 2)) {
+        int palette_offset = (off - 0x300) / 2;
+        int palette_idx    = palette_offset / PALETTE_SIZE;
+        int color_idx      = palette_offset % PALETTE_SIZE;
         gpu->palette[palette_idx][color_idx] = value;
         return;
     }
-    
-    // SPRITE TABLE
+ 
+    // SPRITE TABLE — stride 20 octets (GPU_Sprite = 20 bytes)
 	if (off >= 0x4300 && off < 0x4300 + (MAX_SPRITES * 16)) {
 		int sprite_idx = (off - 0x4300) / 16;
 		int sprite_off = (off - 0x4300) % 16;
-        GPU_Sprite *spr = &gpu->sprites[sprite_idx];
-        
-        switch (sprite_off) {
-            case 0:  spr->x = value; break;
-            case 2:  spr->y = value; break;
-            case 4:  spr->tile_index = value; break;
-            case 6:
-                spr->palette = (value >> 8) & 0xFF;
-                spr->priority = value & 0xFF;
-                break;
-            case 8:  spr->flags = value & 0xFF; break;
-            case 10: spr->scale_x = value; break;
-            case 12: spr->scale_y = value; break;
-            case 14:
-                spr->hitbox_w = (value >> 8) & 0xFF;
-                spr->hitbox_h = value & 0xFF;
-                break;
-        }
-        return;
-    }
-    
+		GPU_Sprite *spr = &gpu->sprites[sprite_idx];
+
+		switch (sprite_off) {
+			case 0:  spr->x          = value; break;
+			case 2:  spr->y          = value; break;
+			case 4:  spr->tile_index = value; break;
+			case 6:
+				spr->palette  = (value >> 8) & 0xFF;
+				spr->priority = value & 0xFF;
+				break;
+			case 8:  spr->flags   = value & 0xFF; break;
+			case 10: spr->scale_x = value;        break;
+			case 12: spr->scale_y = value;        break;
+			case 14: spr->angle   = value;        break; /* FIX: était hitbox */
+		}
+		return;
+	}
+ 
     // STANDARD REGISTERS
     switch (off) {
-        case 0x00: gpu->CTRL = value; break;
+        case 0x00: gpu->CTRL   = value; break;
         case 0x02: gpu->STATUS = value; break;
-        
+ 
         // BG0
-        case 0x10: gpu->BG_SCROLL_X[0] = value; break;
-        case 0x12: gpu->BG_SCROLL_Y[0] = value; break;
+        case 0x10: gpu->BG_SCROLL_X[0]    = value; break;
+        case 0x12: gpu->BG_SCROLL_Y[0]    = value; break;
         case 0x14: gpu->BG_TILEMAP_BASE[0] = value; break;
         case 0x16: gpu->BG_TILESET_BASE[0] = value; break;
-        case 0x18: gpu->BG_CTRL[0] = value; break;
-        
+        case 0x18: gpu->BG_CTRL[0]         = value; break;
+ 
         // BG1
-        case 0x20: gpu->BG_SCROLL_X[1] = value; break;
-        case 0x22: gpu->BG_SCROLL_Y[1] = value; break;
+        case 0x20: gpu->BG_SCROLL_X[1]    = value; break;
+        case 0x22: gpu->BG_SCROLL_Y[1]    = value; break;
         case 0x24: gpu->BG_TILEMAP_BASE[1] = value; break;
         case 0x26: gpu->BG_TILESET_BASE[1] = value; break;
-        case 0x28: gpu->BG_CTRL[1] = value; break;
-        
+        case 0x28: gpu->BG_CTRL[1]         = value; break;
+ 
         // BG2
-        case 0x30: gpu->BG_SCROLL_X[2] = value; break;
-        case 0x32: gpu->BG_SCROLL_Y[2] = value; break;
+        case 0x30: gpu->BG_SCROLL_X[2]    = value; break;
+        case 0x32: gpu->BG_SCROLL_Y[2]    = value; break;
         case 0x34: gpu->BG_TILEMAP_BASE[2] = value; break;
         case 0x36: gpu->BG_TILESET_BASE[2] = value; break;
-        case 0x38: gpu->BG_CTRL[2] = value; break;
-        
+        case 0x38: gpu->BG_CTRL[2]         = value; break;
+ 
         // FG
-        case 0x40: gpu->FG_SCROLL_X = value; break;
-        case 0x42: gpu->FG_SCROLL_Y = value; break;
-        case 0x44: gpu->FG_TILEMAP_BASE = value; break;
-        case 0x46: gpu->FG_TILESET_BASE = value; break;
-        case 0x48: gpu->FG_CTRL = value; break;
-        
+        case 0x40: gpu->FG_SCROLL_X      = value; break;
+        case 0x42: gpu->FG_SCROLL_Y      = value; break;
+        case 0x44: gpu->FG_TILEMAP_BASE  = value; break;
+        case 0x46: gpu->FG_TILESET_BASE  = value; break;
+        case 0x48: gpu->FG_CTRL          = value; break;
+ 
         // HUD
         case 0x50: gpu->HUD_TILEMAP_BASE = value; break;
         case 0x52: gpu->HUD_TILESET_BASE = value; break;
-        case 0x54: gpu->HUD_CTRL = value; break;
-        
+        case 0x54: gpu->HUD_CTRL         = value; break;
+ 
         // DMA
-        case 0x500: gpu->dma_src = (gpu->dma_src & 0xFFFF0000) | value; break;
+        case 0x500: gpu->dma_src = (gpu->dma_src & 0xFFFF0000) | value;         break;
         case 0x502: gpu->dma_src = (gpu->dma_src & 0x0000FFFF) | (value << 16); break;
-        case 0x504: gpu->dma_dst = (gpu->dma_dst & 0xFFFF0000) | value; break;
+        case 0x504: gpu->dma_dst = (gpu->dma_dst & 0xFFFF0000) | value;         break;
         case 0x506: gpu->dma_dst = (gpu->dma_dst & 0x0000FFFF) | (value << 16); break;
-        case 0x508: gpu->dma_len = value; break;
-        case 0x50A:
-            gpu->dma_ctrl = value;
-            // Note: DMA start will be handled explicitly by CPU
-            break;
-        
+        case 0x508: gpu->dma_len  = value; break;
+        case 0x50A: gpu->dma_ctrl = value; break;
+ 
         // COLLISION
-        case 0x60: gpu->COLLISION_CTRL = value; break;
-		case 0x62: gpu->COLLISION_STATUS = value; break;
-        
+        case 0x60: gpu->COLLISION_CTRL   = value; break;
+        case 0x62: gpu->COLLISION_STATUS = value; break;
+ 
         // RAYCASTING
-        case 0x700: gpu->RAYCAST_CTRL = value; break;
-        case 0x702: gpu->RAYCAST_FOV = value; break;
+        case 0x700: gpu->RAYCAST_CTRL   = value; break;
+        case 0x702: gpu->RAYCAST_FOV    = value; break;
         case 0x704: gpu->RAYCAST_HEIGHT = value; break;
     }
 }
@@ -511,66 +505,135 @@ void gpu_render_fg(PB010381_GPU *gpu) {
 }
 
 /* =========================================================
-   SPRITE RENDERING
+    SPRITE RENDERING
 ========================================================= */
 
 void gpu_render_sprites(PB010381_GPU *gpu) {
     if (!gpu->enabled) return;
-    
-    // CORRECTION REMARK 2: Use correct width
+ 
     int screen_w = (gpu->video_mode == 1) ? SCREEN_WIDTH_16_9 : SCREEN_WIDTH_4_3;
     int screen_h = SCREEN_HEIGHT;
-    
-    // Render by priority (0 = behind, 3 = in front)
+ 
     for (int priority = 0; priority < 4; priority++) {
         for (int i = 0; i < MAX_SPRITES; i++) {
             GPU_Sprite *spr = &gpu->sprites[i];
-            if (!spr->enabled) continue;
+            if (!spr->enabled)             continue;
             if (spr->priority != priority) continue;
-            
-            // Sprite size based on scale
-            int tile_size = TILE_SIZE;
-            int sprite_w = (tile_size * spr->scale_x) / 256;
-            int sprite_h = (tile_size * spr->scale_y) / 256;
-            
-            // Render the sprite
-            for (int dy = 0; dy < sprite_h; dy++) {
-                for (int dx = 0; dx < sprite_w; dx++) {
-                    int screen_x = spr->x + dx;
-                    int screen_y = spr->y + dy;
-                    
-                    // Clipping
+ 
+            /* ── Screen size after scaling ── */
+            int tile_size = TILE_SIZE;                               /* 16 */
+            int sprite_w  = (tile_size * (int)spr->scale_x) / 256;
+            int sprite_h  = (tile_size * (int)spr->scale_y) / 256;
+            if (sprite_w <= 0 || sprite_h <= 0) continue;
+ 
+            /* ── Rotation ── */
+            int angle = (int)spr->angle % 360;
+            int cos_a = (int)gpu->cos_lut[angle];   /* fixed-point ×256 */
+            int sin_a = (int)gpu->sin_lut[angle];
+ 
+            /*
+             * Bounding box:
+             *   angle==0 -> bbox = sprite_w × sprite_h
+             *   angle!=0 -> diagonal ≈ sprite_w*√2, approximated by (sprite_w*3)/2
+             *               forced to odd for loop symmetry around 0
+             */
+            int bbox_w = (angle == 0) ? sprite_w : (((sprite_w * 3) / 2) | 1);
+            int bbox_h = (angle == 0) ? sprite_h : (((sprite_h * 3) / 2) | 1);
+            int half_bw = bbox_w / 2;
+            int half_bh = bbox_h / 2;
+ 
+            /*
+             * Sprite center on screen multiplied by 2 (prevents /2 truncation).
+             *   csx2 = 2*spr->x + sprite_w  ↔  2*(spr->x + sprite_w/2.0)
+             * Actual screen position: (csx2 + 1) / 2  (rounded to nearest pixel)
+             */
+            int csx2 = 2 * (int)spr->x + sprite_w;
+            int csy2 = 2 * (int)spr->y + sprite_h;
+ 
+            /*
+             * Tile center in fixed-point ×256.
+             *   tile_size=16 -> pivot pixel = 8 -> 8×256 = 2048
+             *
+             * With tile_center_fp=2048 and angle=0 (cos=256, sin=0):
+             *   dx=-8 -> num_x = -2048+2048 =    0 -> src_x=0  (left pixel)  ✓
+             *   dx=+7 -> num_x =  1792+2048 = 3840 -> src_x=15 (right pixel) ✓
+             *   dx=+8 -> num_x =  2048+2048 = 4096 ≥ tile_fp_max -> CLIPPED  ✓
+             */
+            int tile_center_fp = (tile_size / 2) * 256;   /* 2048 for tile_size=16 */
+            int tile_fp_max    =  tile_size      * 256;   /* 4096: upper limit     */
+ 
+            /* ── Pixel loop ── */
+            for (int dy = -half_bh; dy <= half_bh; dy++) {
+                for (int dx = -half_bw; dx <= half_bw; dx++) {
+ 
+                    /* Screen position */
+                    int screen_x = (csx2 + 1) / 2 + dx;
+                    int screen_y = (csy2 + 1) / 2 + dy;
+ 
                     if (screen_x < 0 || screen_x >= screen_w) continue;
                     if (screen_y < 0 || screen_y >= screen_h) continue;
-                    
-                    // Inverse mapping with scaling
-                    int src_x = (dx * tile_size) / sprite_w;
-                    int src_y = (dy * tile_size) / sprite_h;
-                    
-                    // Flip
+ 
+                    /*
+                     * Inverse mapping:
+                     * dx/dy are screen pixels relative to the sprite center.
+                     *
+                     * Step 1 — inverse rotation (×256):
+                     *   Transpose of CW matrix [cos,−sin;sin,cos]:
+                     *      rx =  dx·cos + dy·sin
+                     *      ry = −dx·sin + dy·cos
+                     *
+                     * Step 2 — scaling to tile space (×256):
+                     *   tx_fp = rx_fp * tile_size / sprite_w
+                     *
+                     * Step 3 — center offset + fixed-point clipping.
+                     *
+                     * IMPORTANT: we check num_x/num_y BEFORE the /256 division.
+                     * In C, integer division truncates TOWARDS ZERO (not towards −∞):
+                     * -128/256 = 0 when we wanted -1 -> pixel incorrectly displayed.
+                     * The check on num_x < 0 detects and discards this case.
+                     */
+ 
+                    /* Step 1 */
+                    int rx_fp = dx * cos_a + dy * sin_a;
+                    int ry_fp = -dx * sin_a + dy * cos_a;
+ 
+                    /* Step 2 */
+                    int tx_fp = rx_fp * tile_size / sprite_w;
+                    int ty_fp = ry_fp * tile_size / sprite_h;
+ 
+                    /* Step 3 */
+                    int num_x = tx_fp + tile_center_fp;
+                    int num_y = ty_fp + tile_center_fp;
+ 
+                    /* Fixed-point clipping (fixes C truncation bug) */
+                    if (num_x < 0 || num_x >= tile_fp_max) continue;
+                    if (num_y < 0 || num_y >= tile_fp_max) continue;
+ 
+                    int src_x = num_x / 256;
+                    int src_y = num_y / 256;
+ 
+                    /* ── Flip ── */
                     if (spr->hflip) src_x = (tile_size - 1) - src_x;
                     if (spr->vflip) src_y = (tile_size - 1) - src_y;
-                    
-                    // Pixel offset in VRAM
-                    uint32_t pixel_offset = (spr->tile_index * TILE_PIXELS) + (src_y * TILE_SIZE + src_x);
+ 
+                    /* ── VRAM Read ── */
+                    uint32_t pixel_offset = ((uint32_t)spr->tile_index * TILE_PIXELS)
+                                          + ((uint32_t)src_y * TILE_SIZE + (uint32_t)src_x);
                     if (pixel_offset >= VRAM_SIZE) continue;
-                    
+ 
                     uint8_t color_idx = gpu->vram[pixel_offset];
-                    if (color_idx == 0) continue;  // Transparent
-                    
-                    // Get color
-                    uint16_t rgb565 = gpu->palette[spr->palette][color_idx];
-                    
-                    // Convert RGB565 -> ARGB8888
+                    if (color_idx == 0) continue;   /* transparent */
+ 
+                    /* ── Palette RGB565 → ARGB8888 ── */
+                    uint16_t rgb565 = gpu->palette[spr->palette & (MAX_PALETTES - 1)][color_idx];
                     uint32_t r = ((rgb565 >> 11) & 0x1F) << 3;
                     uint32_t g = ((rgb565 >>  5) & 0x3F) << 2;
                     uint32_t b = ( rgb565        & 0x1F) << 3;
-                    uint32_t a = 255;
-                    
-                    // CORRECTION REMARK 2: Correct framebuffer index
+ 
+                    /* ── Framebuffer ── */
                     int fb_idx = screen_y * SCREEN_WIDTH_16_9 + screen_x;
-                    if (fb_idx < 400 * 240) {
-                        gpu->framebuffer[fb_idx] = (a << 24) | (r << 16) | (g << 8) | b;
+                    if (fb_idx >= 0 && fb_idx < 400 * 240) {
+                        gpu->framebuffer[fb_idx] = (0xFFu << 24) | (r << 16) | (g << 8) | b;
                     }
                 }
             }
