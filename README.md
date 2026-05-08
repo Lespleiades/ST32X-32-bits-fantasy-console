@@ -436,6 +436,7 @@ This document outlines the priority tasks for the ST32X project based on the cur
 - [ ] **GPU - Collision System** - Implement the logic for Sprite-to-Tile collisions.
 - [ ] **Assembler (ASM) Enhancements** - Add `.db` / `.dw` , `.incbin` directives for raw data insertion (graphics/sound).
 - [ ] **Alpha Blending** - implement functions for alpha blending (SDL or Hardware approach)
+- [ ] **GPU - Rendering Optimization:** Transition from pixel-by-pixel rendering to a more efficient **scanline-based** renderer.
 - [ ] **Line-scrolling** Implement the line-scrolling for perspectives effects.
 
 ### 🟡 Medium Priority
@@ -446,7 +447,6 @@ This document outlines the priority tasks for the ST32X project based on the cur
 
 ### 🔵 Low Priority
 - [ ] **Timing Accuracy** Update the instruction cycle counting (currently defaults to 1 cycle for all opcodes).
-- [ ] **GPU - Rendering Optimization:** Transition from pixel-by-pixel rendering to a more efficient **scanline-based** renderer.
 - [ ] **Debug Tools** - Develop a basic real-time disassembler to monitor execution flow during emulation.
 
 ---
