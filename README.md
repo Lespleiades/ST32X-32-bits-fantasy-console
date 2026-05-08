@@ -437,7 +437,6 @@ This document outlines the priority tasks for the ST32X project based on the cur
 
 ### 🟡 Medium Priority: Graphics & Audio
 - [ ] **GPU - Collision System:** Implement the logic for Sprite-to-Tile collisions.
-- [ ] **Sprite Rotation/Scaling:** Add support for affine transformations (rotation and zoom) for individual sprites.
 - [ ] **Affine Backgrounds:** Finalize the "Mode 7" style raycasting engine using the existing SIN/COS LUTs.
 - [ ] **APU - Audio Quality:** - Implement **linear interpolation** for pitch-shifting to eliminate aliasing noise.
 - [ ] Add basic **ADSR envelopes** (Attack, Decay, Sustain, Release) for volume control.
