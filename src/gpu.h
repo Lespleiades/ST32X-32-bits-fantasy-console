@@ -1,11 +1,3 @@
-/* =========================================================
-Copyright (C) 2026 - Peneaux Benjamin 
-This program is free software; 
-you may redistribute and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation; 
-either version 3 of the license.
-- GNU GENERAL PUBLIC LICENSE V3 -
-========================================================= */
-
 #ifndef PB010381_GPU_H
 #define PB010381_GPU_H
 
@@ -83,8 +75,13 @@ typedef struct {
     uint16_t scale_x;
     uint16_t scale_y;
     
+    // Affine rotation (0-359 degrees, clockwise)
+    uint16_t angle;
+    
     // Collision box (optional)
     uint8_t hitbox_w, hitbox_h;
+    
+    uint8_t _reserved;  // padding to reach 20-byte record boundary
 } GPU_Sprite;
 
 /* =========================================================
