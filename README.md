@@ -433,21 +433,20 @@ It covers:
 This document outlines the priority tasks for the ST32X project based on the current state of the APU, CPU, GPU, and Assembler sources.
 
 ### 🔴 High Priority: System & Core
-- [ ] **GPU - Collision System:** - Implement the logic for Sprite-to-Tile collisions.
-- [ ] **Alpha Blending.. - implement functions for alpha blending (SDL or Hardware approach)
-- [ ] **Line-scrolling:** Implement the line-scrolling for perspectives effects.
+- [ ] **GPU - Collision System** - Implement the logic for Sprite-to-Tile collisions.
+- [ ] **Assembler (ASM) Enhancements** - Add `.db` / `.dw` , `.incbin` directives for raw data insertion (graphics/sound).
+- [ ] **Alpha Blending** - implement functions for alpha blending (SDL or Hardware approach)
+- [ ] **Line-scrolling** Implement the line-scrolling for perspectives effects.
 
 ### 🟡 Medium Priority: Graphics & Audio
-- [ ] **Affine Backgrounds:** - Finalize the "Mode 7" style raycasting engine using the existing SIN/COS LUTs.
-- [ ] **APU - Audio Quality:** - Implement **linear interpolation** for pitch-shifting to eliminate aliasing noise.
-- [ ] Add basic **ADSR envelopes** - (Attack, Decay, Sustain, Release) for volume control.
+- [ ] **Affine Backgrounds** - Finalize the "Mode 7" style raycasting engine using the existing SIN/COS LUTs.
+- [ ] **Audio Quality** - Implement **linear interpolation** for pitch-shifting to eliminate aliasing noise.
+- [ ] **ADSR envelopes** - (Attack, Decay, Sustain, Release) for volume control.
 
 ### 🔵 Low Priority: Tools & Optimization
-- [ ] **Timing Accuracy:** Update the instruction cycle counting (currently defaults to 1 cycle for all opcodes).
-- [ ] **Assembler (ASM) Enhancements:** - Add `.db` / `.dw` directives for raw data insertion.
-- [ ] Add `.incbin` directive to include external assets (graphics/sound) directly into the binary.
+- [ ] **Timing Accuracy** Update the instruction cycle counting (currently defaults to 1 cycle for all opcodes).
 - [ ] **GPU - Rendering Optimization:** Transition from pixel-by-pixel rendering to a more efficient **scanline-based** renderer.
-- [ ] **Debug Tools:** - Develop a basic real-time disassembler to monitor execution flow during emulation.
+- [ ] **Debug Tools** - Develop a basic real-time disassembler to monitor execution flow during emulation.
 
 ---
 
