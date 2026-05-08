@@ -440,6 +440,7 @@ This document outlines the priority tasks for the ST32X project based on the cur
 - [ ] **Line-scrolling** Implement the line-scrolling for perspectives effects.
 
 ### 🟡 Medium Priority
+- [ ] **Create bus.c** - create the file `bus.c` for centralize mem_read / mem_write.
 - [ ] **Palette Swapping** - Implement the palette swapping (CLUT - Color Look-Up Table).
 - [ ] **Affine Backgrounds** - Finalize the "Mode 7" style raycasting engine using the existing SIN/COS LUTs.
 - [ ] **Audio Quality** - Implement **linear interpolation** for pitch-shifting to eliminate aliasing noise.
