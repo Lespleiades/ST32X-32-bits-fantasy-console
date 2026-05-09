@@ -19,23 +19,13 @@
 
 ## What is ST32X?
 
-**ST32X** is a fantasy console — an imaginary piece of hardware that never existed, fully emulated in software. Inspired by the golden age of 16-bit/32-bit consoles and designed for 2D pixelart games, it combines the nostalgia of classic game hardware with a clean, modern **32-bit linear architecture**.
-
-You write programs in **ST32X Assembly**, assemble them into a binary ROM, and the emulator runs them — complete with graphics, sound, and gamepad input.
-
-It is a complete system built from scratch:
-
-- A **custom CPU** with a 32-bit address space and 16 general-purpose registers
-- A **GPU** with 6 display layers, 256 sprites, hardware scrolling and collision detection
-- An **APU** with 16 wavetable audio channels at 44100 Hz
-- A **custom assembler** that turns `.asm` source files into runnable binaries (Roms)
-- **SDL2** for window rendering, audio output, and gamepad support
+**ST32X** is a fantasy console — an imaginary console that never existed. Inspired by the golden age of 16-bit/32-bit consoles and arcade machine fully designed for 2D pixel-art games, it combines the nostalgia of classic game hardware with a clean, **32-bit linear architecture RISC**.
 
 ---
 
 ## ST32X vs. 32-Bit Era Consoles: Technical Comparison
 
-The **ST32X** is a unique entry in the fantasy console landscape. While commercial machines of the mid-90s pushed for raw 3D power, the ST32X focuses on a **streamlined architecture and direct register manipulation**, making it feel more like a "Neo-Geo on steroids" than a PlayStation.
+The **ST32X** is a unique entry in the fantasy console landscape. While commercial machines of the mid-90s pushed for raw 3D power, the ST32X focuses on a 2D games.
 
 ## Technical Comparison Table
 
@@ -53,24 +43,13 @@ The **ST32X** is a unique entry in the fantasy console landscape. While commerci
 ## Key Differentiators
 
 ### Programming Philosophy: Assembly vs. SDKs
-While most 32-bit consoles relied on complex C libraries to manage polygons, the **ST32X** is designed for **pure Assembly programming**. Its RISC instruction set and Memory-Mapped I/O (MMIO) registers are accessed directly, offering total hardware control similar to a Game Boy Advance but with 32-bit precision.
+While most 32-bit consoles relied on complex C libraries to manage polygons, the **ST32X** is designed for **pure Assembly programming**. Its **RISC instruction set** and Memory-Mapped I/O (MMIO) registers are accessed directly, offering total hardware control with 32-bit precision.
 
 ### Graphics: The "Super 2D" Approach
 The ST32X excels in **rich 2D performance** rather than transforming triangles:
 *   **Multi-Layering:** Supports 4 background layers (BG0-BG3) with configurable priorities.
 *   **Sprite Management:** Uses a simplified OAM (Object Attribute Memory) where each sprite is defined by coordinates and a tile ID.
-*   **Affine Transformations:** Includes built-in Trigonometric Tables (SIN/COS) for "Mode 7" style distortion and raycasting effects.
-
-### Simplified Memory Management
-A major advantage of the ST32X over historical hardware is its **linear memory map**:
-*   **VRAM** begins at `0x00080000`.
-*   **Palette** begins at `0x00100500`.
-*   **I/O Registers** are logically grouped for easy access.
-
-There is no complex memory banking or hardware cache management, making development highly predictable for solo developers.
-
-## Summary
-The **ST32X** is technically less powerful than a PlayStation for complex 3D models, but it is **significantly more optimized for high-resolution 2D games** (RGB565). it captures the essence of 32-bit hardware without the administrative complexity of commercial systems from 1994.
+*   **Affine Transformations:** Includes built-in Trigonometric Tables (SIN/COS) for "Mode 7" style distortion and raycasting effects (WIP).
 
 ---
 
@@ -113,7 +92,7 @@ The CPU emulation follows a strict **Reduced Instruction Set Computer (RISC)** p
 ## Feature Highlights
 
 ### CPU
-- 32-bit linear address space — no bank switching, no memory segmentation
+- 32-bit linear address space
 - 16 general-purpose 32-bit registers (`R0`–`R15`, with `R15` as SP)
 - 50+ instructions: arithmetic, logic, shifts, memory, jumps, stack, I/O
 - Big-Endian byte order
@@ -414,7 +393,9 @@ ST32X-32-bits-fantasy-console/
 
 ## Technical Reference
 
-The documentation is available in [`ST32X_DOCUMENTATION-EN.md`](doc/ST32X_DOCUMENTATION-EN.md).
+~~*The documentation is available in [`ST32X_DOCUMENTATION-EN.md`](doc/ST32X_DOCUMENTATION-EN.md).*~~
+
+*removed for now. The documentation will be updated when the main basic functionalities are all implemented*
 
 It covers:
 - ISA (50+ instructions with opcodes and encoding)
@@ -462,13 +443,9 @@ This document outlines the priority tasks for the ST32X project based on the cur
 Contributions are welcome! Here are some ways to get involved:
 
 - **Code correction / modifications** in ST32X files
-- **Opcodes completion** if necessary
 - **Write demo programs** in ST32X Assembly and submit them
-- **Implement missing GPU features** (DMA, sprite-tile collision)
 - **Port to Linux/macOS** and report any build issues
 - **Write tests** for the CPU instruction set
-- **Improve the assembler** (macro support, include directives, better errors)
-- **Fix bugs** — see the open issues
 
 ### How to contribute
 
