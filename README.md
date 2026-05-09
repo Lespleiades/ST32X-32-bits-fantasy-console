@@ -60,7 +60,7 @@ The RISC architecture is not heresy in the world of retro consoles. the playstat
 ### Key Architectural Advantages
 
 #### Linear Memory Addressing
-Unlike 90s hardware that required complex memory banking to bypass 16-bit limits, the ST32X provides a **flat 32-bit memory space**. 
+Unlike 90s 2D hardware that required complex memory banking to bypass 16/32-bit limits (Motorola 68000), the ST32X provides a **flat 32-bit memory space** like MIPS R3000. 
 *   **VRAM Access:** Directly accessible at `0x00080000`.
 *   **Palette Control:** Fast writes starting at `0x00100500`.
 This eliminates the "bottleneck" logic found in classic emulators, allowing for higher performance and cleaner Assembly code.
