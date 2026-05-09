@@ -53,21 +53,9 @@ The ST32X excels in **rich 2D performance** rather than transforming triangles:
 
 ---
 
-## Emulation Philosophy: ST32X vs. Classic Emulators
+### About 32 bit RISC architecture
 
-The **ST32X** is not a traditional emulator designed to mimic a physical past; it is a **Virtual Hardware Specification** designed for the future of hobbyist development.
-
-### Logic-Level Virtualization vs. Hardware Reproduction
-
-Traditional emulators (HLE/LLE) focus on reproducing the quirks and limitations of physical silicon. The ST32X focuses on **Architectural Purity**.
-
-| Feature | Classic Emulators (PS1/Saturn) | ST32X Virtual Machine |
-| :--- | :--- | :--- |
-| **Primary Goal** | Historical Accuracy / Preservation | Developer Experience / Performance |
-| **Memory Map** | Fragmented (Bank switching/Segments) | **Linear & Unified** (0x00000000 - 0xFFFFFFFF) |
-| **I/O Handling** | Complex Bus Arbitration | **Direct MMIO Registers** |
-| **Code Execution** | Binary Translation / Interpretation | **Native 32-bit RISC Execution** |
-| **Graphics** | Re-interpretation (OpenGL/Vulkan) | **Byte-Direct Framebuffer/Tilemap** |
+The RISC architecture is not heresy in the world of retro consoles. the playstation 1 for example used the 32-bit RISC (MIPS) architecture. Although at the time of 2D consoles processors like the Motorola 68000 (for example) based on a CISC architecture were more widely used for reasons of memory cost and developers' assembly skills. Which is no longer really a problem when we have a development kit. The ST32X unconsciously decides to use the RISC architecture, not because it's easy, but because it's powerful.
 
 ---
 
