@@ -53,11 +53,9 @@ The ST32X excels in **rich 2D performance** rather than transforming triangles:
 
 ---
 
-### About 32 bit RISC architecture
+## About 32 bit RISC architecture
 
-The RISC architecture is not heresy in the world of retro consoles. the playstation 1 for example used the 32-bit RISC (MIPS) architecture. Although at the time of 2D consoles processors like the Motorola 68000 (for example) based on a CISC architecture were more widely used for reasons of memory cost and developers' assembly skills. Which is no longer really a problem when we have a development kit. The ST32X unconsciously decides to use the RISC architecture, not because it's easy, but because it's powerful.
-
----
+The RISC architecture is not heresy in the world of retro consoles. the playstation 1 for example used the 32-bit RISC (MIPS) architecture. Although at the time of 2D consoles processors like the Motorola 68000 (for example) based on a CISC architecture were more widely used for reasons of memory cost and developers' assembly skills. Which is no longer really a problem when we have a development kit. The ST32X  decides to use the RISC architecture, not because it's easy, but because it's powerful.
 
 ### Key Architectural Advantages
 
