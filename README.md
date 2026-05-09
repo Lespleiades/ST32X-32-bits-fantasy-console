@@ -42,7 +42,7 @@ The **ST32X** is a unique entry in the fantasy console landscape. While commerci
 
 ## Key Differentiators
 
-### Programming Philosophy: Assembly vs. SDKs
+### Programming Philosophy
 While most 32-bit consoles relied on complex C libraries to manage polygons, the **ST32X** is designed for **pure Assembly programming**. Its **RISC instruction set** and Memory-Mapped I/O (MMIO) registers are accessed directly, offering total hardware control with 32-bit precision.
 
 ### Graphics: The "Super 2D" Approach
